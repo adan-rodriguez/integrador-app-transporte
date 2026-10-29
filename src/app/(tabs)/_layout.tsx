@@ -1,32 +1,52 @@
-import { Tabs } from 'expo-router';
-// Opcional: importar iconos de vector-icons
-// import { Ionicons } from '@expo/vector-icons'; // TODO: instalar @expo/vector-icons
+import Ionicons from "@react-native-vector-icons/ionicons";
+import { Tabs } from "expo-router";
+
+import { useColores } from "@/tema";
 
 export default function TabsLayout() {
+  const colores = useColores();
+
   return (
-    <Tabs screenOptions={{ tabBarActiveTintColor: 'blue' }}>
+    <Tabs
+      screenOptions={{
+        tabBarActiveTintColor: colores.acento,
+        tabBarInactiveTintColor: colores.textoSecundario,
+        tabBarStyle: {
+          backgroundColor: colores.fondo,
+          borderTopColor: colores.borde,
+        },
+        headerStyle: { backgroundColor: colores.fondo },
+        headerTintColor: colores.texto,
+        headerShadowVisible: false,
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Inicio',
-          // tabBarIcon: ({ color }) => <Ionicons name="home" size={24} color={color} />,
+          title: "Inicio",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="home-outline" color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
         name="lineas"
         options={{
-          title: 'Líneas',
-          // tabBarIcon: ({ color }) => <Ionicons name="bus" size={24} color={color} />,
+          title: "Líneas",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bus-outline" color={color} size={size} />
+          ),
         }}
       />
       <Tabs.Screen
-        name="perfil"
+        name="yo"
         options={{
-          title: 'Perfil',
-          // tabBarIcon: ({ color }) => <Ionicons name="person" size={24} color={color} />,
+          title: "Yo",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-outline" color={color} size={size} />
+          ),
         }}
       />
     </Tabs>
   );
 }
-
