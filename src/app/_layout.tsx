@@ -46,6 +46,7 @@ function Contenido() {
       />
       <Stack.Screen name="ingresar" options={{ title: "Ingresar" }} />
       <Stack.Screen name="registro" options={{ title: "Crear cuenta" }} />
+      <Stack.Screen name="parada/escanear" options={{ title: "Escanear QR" }} />
     </Stack>
   );
 }

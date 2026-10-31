@@ -1,5 +1,5 @@
-import { View, Text, StyleSheet, Button } from 'react-native';
-import { Link } from 'expo-router';
+import { View, Text, StyleSheet, Button, Pressable } from 'react-native';
+import { Link, router } from 'expo-router';
 
 export default function InicioScreen() {
   // TODO: 
@@ -10,7 +10,10 @@ export default function InicioScreen() {
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Transporte Público Paraná</Text>
-      
+      <Pressable onPress={() => router.push('/parada/escanear')}>
+        <Text>Escanear parada</Text>
+      </Pressable>
+
       {/* TODO: Reemplazar con listas reales usando FlatList y componentes visuales */}
       <Text style={styles.subtitle}>Tus paradas (Favoritos)</Text>
       <Link href="/parada/par-101" asChild>
