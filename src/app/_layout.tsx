@@ -38,7 +38,7 @@ function Contenido() {
     >
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="linea/[id]" options={{ title: "Detalle de Línea" }} />
-      <Stack.Screen name="parada/[id]" options={{ title: "Detalle de Parada" }} />
+      <Stack.Screen name="parada" options={{ headerShown: false }} />
       <Stack.Screen name="aviso/[id]" options={{ title: "Aviso" }} />
       <Stack.Screen
         name="reporte/[id_linea]/[id_parada]"
@@ -46,7 +46,6 @@ function Contenido() {
       />
       <Stack.Screen name="ingresar" options={{ title: "Ingresar" }} />
       <Stack.Screen name="registro" options={{ title: "Crear cuenta" }} />
-      <Stack.Screen name="parada/escanear" options={{ title: "Escanear QR" }} />
     </Stack>
   );
 }

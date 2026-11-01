@@ -30,6 +30,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="paradas"
+        options={{
+          title: "Paradas",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="location-outline" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="lineas"
         options={{
           title: "Líneas",
@@ -47,6 +56,7 @@ export default function TabsLayout() {
           ),
         }}
       />
+
     </Tabs>
   );
 }

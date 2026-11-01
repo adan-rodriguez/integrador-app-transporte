@@ -1,6 +1,7 @@
 import { View, Text, Pressable, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRef } from 'react';
+import { router } from 'expo-router';
 
 export default function Escanear() {
   const [permiso, pedirPermiso] = useCameraPermissions();
@@ -54,10 +55,11 @@ export default function Escanear() {
             );
             return;
           }
-
+          
           // Es de parada → sacamos el id
           const id = data.replace('PARANA:', '');
           console.log('Parada:', id);
+          router.replace({ pathname: '/parada/[id]', params: {id} });
         }}
       />
     </View>

@@ -1,5 +1,9 @@
-import { Linea, Parada, Horario, Aviso, ReporteDeDemora, ApiResponse, ApiError } from '../tipos';
-import { mockLineas, mockParadas, mockHorarios, mockAvisos, mockReportes } from '../mocks';
+import { mockAvisos, mockHorarios, mockLineas, mockParadas } from '../mocks';
+import { ApiError, ApiResponse, Aviso, Horario, Linea, Parada, ReporteDeDemora } from '../tipos';
+import { distanciaMetros } from '../utilidades/coordenadas';
+import { pedirDatos } from './cliente';
+
+
 
 // Utilidad para simular latencia de red
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -19,17 +23,35 @@ export const obtenerLinea = async (id: string): Promise<ApiResponse<Linea> | Api
   return { datos: linea };
 };
 
-export const obtenerParadasCercanas = async (lat: number, lng: number): Promise<ApiResponse<Parada[]>> => {
-  await delay(1200);
-  // Simplemente devolvemos el mock de paradas
-  return { datos: mockParadas };
+export type ParadaCercana = Parada & { distanciaMetros: number };
+
+export const obtenerParadasCercanas = async (
+  lat: number,
+  lng: number,
+  radioMetros = 500
+): Promise<ApiResponse<ParadaCercana[]>> => {
+  const res = await pedirDatos<Parada[]>('/paradas', {
+    consulta: { latitud: lat, longitud: lng, radioMetros, orden: 'distancia', porPagina: 1000 },
+  });
+  const yo = { latitud: lat, longitud: lng };
+  const datos = res.datos.map((p) => ({ ...p, distanciaMetros: distanciaMetros(yo, p.coordenadas) }));
+  return { datos };
+};
+
+export const obtenerParadas = async (): Promise<ApiResponse<Parada[]>> => {
+  const res = await pedirDatos<Parada[]>('/paradas', {
+    consulta: { porPagina: 1000, orden: 'nombre' },
+  });
+  return { datos: res.datos };
 };
 
 export const obtenerParada = async (id: string): Promise<ApiResponse<Parada> | ApiError> => {
-  await delay(800);
-  const parada = mockParadas.find(p => p.id === id);
-  if (!parada) return { error: { codigo: "PARADA_NO_ENCONTRADA", mensaje: "No existe esa parada." } };
-  return { datos: parada };
+  try {
+    const res = await pedirDatos<Parada>(`/paradas/${id}`);
+    return { datos: res.datos };
+  } catch (e: any) {
+    return { error: { codigo: e.codigo ?? 'ERROR', mensaje: e.message } };
+  }
 };
 
 export const obtenerHorariosParada = async (paradaId: string): Promise<ApiResponse<Horario[]>> => {

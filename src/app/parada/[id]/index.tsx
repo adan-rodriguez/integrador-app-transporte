@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, Button, FlatList } from 'react-native';
 import { useLocalSearchParams, Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { obtenerParada, obtenerHorariosParada } from '../../servicios/api';
-import { Parada, Horario } from '../../tipos';
+import { obtenerParada, obtenerHorariosParada } from '../../../servicios/api';
+import { Parada, Horario } from '../../../tipos';
 
 export default function ParadaDetailScreen() {
   const { id } = useLocalSearchParams();
