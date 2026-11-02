@@ -1,4 +1,4 @@
-import { mockAvisos, mockHorarios, mockLineas, mockParadas } from '../mocks';
+import { mockAvisos, mockLineas } from '../mocks';
 import { ApiError, ApiResponse, Aviso, Horario, Linea, Parada, ReporteDeDemora } from '../tipos';
 import { distanciaMetros } from '../utilidades/coordenadas';
 import { pedirDatos } from './cliente';
@@ -55,9 +55,10 @@ export const obtenerParada = async (id: string): Promise<ApiResponse<Parada> | A
 };
 
 export const obtenerHorariosParada = async (paradaId: string): Promise<ApiResponse<Horario[]>> => {
-  await delay(1000);
-  const horarios = mockHorarios.filter(h => h.paradaId === paradaId);
-  return { datos: horarios };
+  const res = await pedirDatos<Horario[]>(`/paradas/${paradaId}/proximos`, {
+    consulta: { cantidad: 3 },
+  });
+  return { datos: res.datos };
 };
 
 export const obtenerAvisos = async (): Promise<ApiResponse<Aviso[]>> => {
