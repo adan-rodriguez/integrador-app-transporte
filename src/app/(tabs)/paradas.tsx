@@ -5,6 +5,7 @@ import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native
 import { useUbicacion } from "@/hooks/useUbicacion";
 import { obtenerParadas, obtenerParadasCercanas } from "@/servicios/api";
 import { Parada } from "@/tipos";
+import MapaParadas from "@/componentes/MapaParadas";
 
 type Fila = Parada & { distanciaMetros?: number };
 
@@ -17,7 +18,7 @@ export default function Paradas() {
   const [paradas, setParadas] = useState<Fila[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
+  const [vista, setVista] = useState<"lista" | "mapa">("lista");
 
   const conUbicacion = estado === "concedido" && posicion !== null;
 
@@ -48,6 +49,18 @@ export default function Paradas() {
         </Pressable>
       )}
 
+      <View style={{ flexDirection: "row", borderWidth: 1, borderRadius: 10, overflow: "hidden" }}>
+        {(["lista", "mapa"] as const).map((v) => (
+          <Pressable
+            key={v}
+            onPress={() => setVista(v)}
+            style={{ flex: 1, padding: 10, backgroundColor: vista === v ? "#ddd" : "transparent" }}
+          >
+            <Text style={{ textAlign: "center" }}>{v === "lista" ? "Lista" : "Mapa"}</Text>
+          </Pressable>
+        ))}
+      </View>
+
       <View style={{ flexDirection: "row", gap: 8 }}>
         {RADIOS.map((r) => {
           const activo = conUbicacion ? radio === r : r === null;
@@ -73,24 +86,37 @@ export default function Paradas() {
 
       {error && <Text>{error}</Text>}
 
-      <FlatList
-        data={paradas}
-        keyExtractor={(p) => p.id}
-        refreshing={buscando}
-        onRefresh={reintentar}
-        ListEmptyComponent={!buscando ? <Text>No hay paradas en ese radio.</Text> : null}
-        renderItem={({ item }) => (
-          <Link href={`/parada/${item.id}`} asChild>
-            <Pressable style={{ paddingVertical: 12, borderBottomWidth: 1, borderColor: "#ddd" }}>
-              <Text style={{ fontWeight: "600" }}>{item.nombre}</Text>
-              <Text>
-                {item.distanciaMetros !== undefined ? `${Math.round(item.distanciaMetros)} m · ` : ""}
-                {item.lineaIds.join(", ")}
-              </Text>
-            </Pressable>
-          </Link>
-        )}
-      />
+      {vista === "lista" ? (
+        <FlatList
+          data={paradas}
+          keyExtractor={(p) => p.id}
+          refreshing={buscando}
+          onRefresh={reintentar}
+          ListEmptyComponent={!buscando ? <Text>No hay paradas en ese radio.</Text> : null}
+          renderItem={({ item }) => (
+            <Link href={`/parada/${item.id}`} asChild>
+              <Pressable style={{ paddingVertical: 12, borderBottomWidth: 1, borderColor: "#ddd" }}>
+                <Text style={{ fontWeight: "600" }}>{item.nombre}</Text>
+                <Text>
+                  {item.distanciaMetros !== undefined ? `${Math.round(item.distanciaMetros)} m · ` : ""}
+                  {item.lineaIds.join(", ")}
+                </Text>
+              </Pressable>
+            </Link>
+          )}
+        />
+      ) : (
+        <View style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
+          <MapaParadas
+            paradas={paradas}
+            centro={
+              conUbicacion && posicion
+                ? { latitud: posicion.coords.latitude, longitud: posicion.coords.longitude }
+                : null
+            }
+          />
+        </View>
+      )}
 
       <Link href="/parada/escanear" asChild>
         <Pressable style={{ padding: 14, borderWidth: 1, borderRadius: 10 }}>
