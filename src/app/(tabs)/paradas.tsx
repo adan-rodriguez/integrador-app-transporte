@@ -1,6 +1,6 @@
 import { Link } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from "react-native";
 
 import { useUbicacion } from "@/hooks/useUbicacion";
 import { obtenerParadas, obtenerParadasCercanas } from "@/servicios/api";
@@ -19,8 +19,18 @@ export default function Paradas() {
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vista, setVista] = useState<"lista" | "mapa">("lista");
+  const [busqueda, setBusqueda] = useState("");
+  const [q, setQ] = useState("");
+
+
+
 
   const conUbicacion = estado === "concedido" && posicion !== null;
+
+  useEffect(() => {
+    const t = setTimeout(() => setQ(busqueda.trim()), 400);
+    return () => clearTimeout(t);
+  }, [busqueda]);
 
   useEffect(() => {
     if (estado === "cargando") return;
@@ -28,13 +38,14 @@ export default function Paradas() {
     setError(null);
     const pedido =
       conUbicacion && radio !== null
-        ? obtenerParadasCercanas(posicion.coords.latitude, posicion.coords.longitude, radio)
-        : obtenerParadas();
+        ? obtenerParadasCercanas(posicion.coords.latitude, posicion.coords.longitude, radio, q)
+        : obtenerParadas(q);
     pedido
       .then((res) => setParadas(res.datos))
       .catch((e) => setError(e.message))
       .finally(() => setBuscando(false));
-  }, [estado, posicion, radio]);
+  }, [estado, posicion, radio, q]);
+
 
   if (estado === "cargando") return <ActivityIndicator style={{ flex: 1 }} />;
 
@@ -49,6 +60,15 @@ export default function Paradas() {
         </Pressable>
       )}
 
+
+      <TextInput
+        value={busqueda}
+        onChangeText={setBusqueda}
+        placeholder="Buscar parada por nombre o calle"
+        autoCorrect={false}
+        clearButtonMode="while-editing"
+        style={{ borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, height: 44 }}
+      />
       <View style={{ flexDirection: "row", borderWidth: 1, borderRadius: 10, overflow: "hidden" }}>
         {(["lista", "mapa"] as const).map((v) => (
           <Pressable
@@ -92,7 +112,9 @@ export default function Paradas() {
           keyExtractor={(p) => p.id}
           refreshing={buscando}
           onRefresh={reintentar}
-          ListEmptyComponent={!buscando ? <Text>No hay paradas en ese radio.</Text> : null}
+          ListEmptyComponent={
+            !buscando ? <Text>{q ? `No encontramos paradas con "${q}".` : "No hay paradas en ese radio."}</Text> : undefined
+          }
           renderItem={({ item }) => (
             <Link href={`/parada/${item.id}`} asChild>
               <Pressable style={{ paddingVertical: 12, borderBottomWidth: 1, borderColor: "#ddd" }}>

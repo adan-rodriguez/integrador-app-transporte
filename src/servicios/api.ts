@@ -23,24 +23,27 @@ export const obtenerLinea = async (id: string): Promise<ApiResponse<Linea> | Api
   return { datos: linea };
 };
 
+// PARADAAS=======================================================================================================================================
 export type ParadaCercana = Parada & { distanciaMetros: number };
+
 
 export const obtenerParadasCercanas = async (
   lat: number,
   lng: number,
-  radioMetros = 500
+  radioMetros = 500,
+  q?: string
 ): Promise<ApiResponse<ParadaCercana[]>> => {
   const res = await pedirDatos<Parada[]>('/paradas', {
-    consulta: { latitud: lat, longitud: lng, radioMetros, orden: 'distancia', porPagina: 1000 },
+    consulta: { latitud: lat, longitud: lng, radioMetros, orden: 'distancia', porPagina: 1000, q },
   });
   const yo = { latitud: lat, longitud: lng };
   const datos = res.datos.map((p) => ({ ...p, distanciaMetros: distanciaMetros(yo, p.coordenadas) }));
   return { datos };
 };
 
-export const obtenerParadas = async (): Promise<ApiResponse<Parada[]>> => {
+export const obtenerParadas = async (q?: string): Promise<ApiResponse<Parada[]>> => {
   const res = await pedirDatos<Parada[]>('/paradas', {
-    consulta: { porPagina: 1000, orden: 'nombre' },
+    consulta: { porPagina: 1000, orden: 'nombre', q },
   });
   return { datos: res.datos };
 };
@@ -60,6 +63,13 @@ export const obtenerHorariosParada = async (paradaId: string): Promise<ApiRespon
   });
   return { datos: res.datos };
 };
+
+export const obtenerLineasDeParada = async (lineaIds: string[]): Promise<ApiResponse<Linea[]>> => {
+  const res = await pedirDatos<Linea[]>('/lineas');
+  return { datos: res.datos.filter((l) => lineaIds.includes(l.id)) };
+};
+
+// FIN PARADAAS=======================================================================================================================================
 
 export const obtenerAvisos = async (): Promise<ApiResponse<Aviso[]>> => {
   await delay(1000);
