@@ -1,15 +1,23 @@
 import { obtenerHorariosParada, obtenerLineasDeParada, obtenerParada } from '@/servicios/api';
 import { Horario, Linea, Parada } from '@/tipos';
 import { agruparPorLinea } from '@/utilidades/horarios';
-import { Link, useLocalSearchParams } from 'expo-router';
+import { Link, useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRumbo } from '@/hooks/useRumbo';
 import FlechaRumbo from '@/componentes/FlechaRumbo';
 
+
+//FAVORITO============================================================================================================
+import Ionicons from '@react-native-vector-icons/ionicons';
+import { agregarParadaFavorita, quitarParadaFavorita } from '@/servicios/cuenta';
+import { useSesion } from '@/sesion';
+//=======================================================================================================================
+
+
 export default function ParadaDetailScreen() {
   // TODO: usar useColores() de @/tema en vez de colores fijos (en modo oscuro se ve mal)
-  
+
   const { id } = useLocalSearchParams();
   const [parada, setParada] = useState<Parada | null>(null);
   const [horarios, setHorarios] = useState<Horario[]>([]);
@@ -17,6 +25,29 @@ export default function ParadaDetailScreen() {
   const [lineas, setLineas] = useState<Linea[]>([]);
   const { angulo, distancia } = useRumbo(parada?.coordenadas ?? null);
 
+  //FAVORITO============================================================================================================
+
+  const { usuario, reemplazarUsuario } = useSesion();
+  const esFavorita = !!parada && !!usuario?.paradasFavoritas.includes(parada.id);
+
+  async function alternarFavorita() {
+    if (!parada) return;
+    if (!usuario) {
+      router.push('/ingresar'); // sin sesión no hay favoritos
+      return;
+    }
+    if (esFavorita) {
+      await quitarParadaFavorita(parada.id);
+      reemplazarUsuario({
+        ...usuario,
+        paradasFavoritas: usuario.paradasFavoritas.filter((p) => p !== parada.id),
+      });
+    } else {
+      const { datos } = await agregarParadaFavorita(parada.id);
+      reemplazarUsuario(datos);
+    }
+  }
+  //=======================================================================================================================
 
   useEffect(() => {
     Promise.all([
@@ -55,6 +86,13 @@ export default function ParadaDetailScreen() {
             Líneas que pasan: {parada.lineaIds.map((id) => lineas.find((l) => l.id === id)?.numero ?? id).join(', ')}
           </Text>
         </View>
+        <Pressable
+          onPress={alternarFavorita}
+          style={{ padding: 8 }}
+          accessibilityLabel={esFavorita ? 'Quitar de favoritas' : 'Agregar a favoritas'}
+        >
+          <Ionicons name={esFavorita ? 'star' : 'star-outline'} size={28} color="#f5a623" />
+        </Pressable>
         <Link href={`/parada/${parada.id}/rumbo`} asChild>
           <Pressable style={styles.rumbo} accessibilityLabel="Cómo llego a la parada">
             <FlechaRumbo angulo={angulo} />
