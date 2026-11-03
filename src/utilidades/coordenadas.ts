@@ -22,3 +22,9 @@ export function rumboGrados(a: Coordenadas, b: Coordenadas): number {
     Math.sin(rad(a.latitud)) * Math.cos(rad(b.latitud)) * Math.cos(dLon);
   return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
+
+// "120 m" o "2,4 km" modularisado
+export function formatearDistancia(metros: number): string {
+  if (metros < 1000) return `${Math.round(metros)} m`;
+  return `${(metros / 1000).toFixed(1).replace('.', ',')} km`;
+}

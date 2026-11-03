@@ -6,6 +6,7 @@ import { useUbicacion } from "@/hooks/useUbicacion";
 import { obtenerParadas, obtenerParadasCercanas } from "@/servicios/api";
 import { Parada } from "@/tipos";
 import MapaParadas from "@/componentes/MapaParadas";
+import { formatearDistancia } from "@/utilidades/coordenadas";
 
 type Fila = Parada & { distanciaMetros?: number };
 
@@ -103,6 +104,7 @@ export default function Paradas() {
           );
         })}
       </View>
+      
 
       {error && <Text>{error}</Text>}
 
@@ -120,7 +122,7 @@ export default function Paradas() {
               <Pressable style={{ paddingVertical: 12, borderBottomWidth: 1, borderColor: "#ddd" }}>
                 <Text style={{ fontWeight: "600" }}>{item.nombre}</Text>
                 <Text>
-                  {item.distanciaMetros !== undefined ? `${Math.round(item.distanciaMetros)} m · ` : ""}
+                  {item.distanciaMetros !== undefined ? `${formatearDistancia(item.distanciaMetros)} · ` : ""}
                   {item.lineaIds.join(", ")}
                 </Text>
               </Pressable>

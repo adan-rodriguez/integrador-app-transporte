@@ -6,6 +6,7 @@ import FlechaRumbo from "@/componentes/FlechaRumbo";
 import { useRumbo } from "@/hooks/useRumbo";
 import { obtenerParada } from "@/servicios/api";
 import { Parada } from "@/tipos";
+import { formatearDistancia } from "@/utilidades/coordenadas";
 
 export default function Rumbo() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -45,7 +46,7 @@ export default function Rumbo() {
           ) : (
             <Text>Tu teléfono no tiene brújula.</Text>
           )}
-          <Text style={{ fontSize: 36, fontWeight: "700" }}>{Math.round(distancia ?? 0)} m</Text>
+          <Text style={{ fontSize: 36, fontWeight: "700" }}>{formatearDistancia(distancia ?? 0)}m</Text>
           <Text>Caminá hacia donde apunta la flecha</Text>
         </>
       )}

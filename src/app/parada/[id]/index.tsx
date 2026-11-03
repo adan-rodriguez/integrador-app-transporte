@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRumbo } from '@/hooks/useRumbo';
 import FlechaRumbo from '@/componentes/FlechaRumbo';
-
+import { formatearDistancia } from '@/utilidades/coordenadas';
 
 //FAVORITO============================================================================================================
 import Ionicons from '@react-native-vector-icons/ionicons';
@@ -97,7 +97,7 @@ export default function ParadaDetailScreen() {
           <Pressable style={styles.rumbo} accessibilityLabel="Cómo llego a la parada">
             <FlechaRumbo angulo={angulo} />
             <Text style={{ fontSize: 12 }}>
-              {distancia !== null ? `${Math.round(distancia)} m` : '...'}
+              {distancia !== null ? formatearDistancia(distancia) : '...'}
             </Text>
           </Pressable>
         </Link>
