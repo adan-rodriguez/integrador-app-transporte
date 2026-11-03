@@ -3,7 +3,7 @@ import { Horario, Linea, Parada } from '@/tipos';
 import { agruparPorLinea } from '@/utilidades/horarios';
 import { Link, useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRumbo } from '@/hooks/useRumbo';
 import FlechaRumbo from '@/componentes/FlechaRumbo';
 import { formatearDistancia } from '@/utilidades/coordenadas';
@@ -14,6 +14,9 @@ import { agregarParadaFavorita, quitarParadaFavorita } from '@/servicios/cuenta'
 import { useSesion } from '@/sesion';
 //=======================================================================================================================
 
+//NOTIFICACIO ALERTA============================================================================================================
+import { programarRecordatorio } from '@/servicios/recordatorios';
+//=======================================================================================================================
 
 export default function ParadaDetailScreen() {
   // TODO: usar useColores() de @/tema en vez de colores fijos (en modo oscuro se ve mal)
@@ -77,6 +80,21 @@ export default function ParadaDetailScreen() {
     return `Línea ${l.numero}${recorrido ? ' ' + recorrido.destino : ''}`;
   }
 
+  function pedirRecordatorio(hora: string, lineaId: string) {
+    Alert.alert('Recordatorio', `¿Te avisamos 10 minutos antes del de las ${hora}?`, [
+      { text: 'Cancelar', style: 'cancel' },
+      {
+        text: 'Avisarme',
+        onPress: async () => {
+          const r = await programarRecordatorio(hora, nombreLinea(lineaId), parada!.nombre);
+          if (r === 'ok') Alert.alert('Listo', `Te avisamos 10 minutos antes de las ${hora}.`);
+          if (r === 'falta-poco') Alert.alert('Falta muy poco', 'Quedan menos de 10 minutos para ese horario.');
+          if (r === 'sin-permiso') Alert.alert('Sin permiso', 'Activá las notificaciones para recibir recordatorios.');
+        },
+      },
+    ]);
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.encabezado}>
@@ -104,6 +122,7 @@ export default function ParadaDetailScreen() {
       </View>
 
       <Text style={styles.subtitle}>Próximos horarios (según tabla)</Text>
+      <Text style={{ fontSize: 12, marginBottom: 4 }}>Tocá un horario para que te avisemos 10 min antes.</Text>
       <FlatList
         data={agruparPorLinea(horarios)}
         keyExtractor={(g) => g.lineaId}
@@ -114,10 +133,18 @@ export default function ParadaDetailScreen() {
               <Text>No hay más servicio hasta mañana a las {g.horarios[0].hora}</Text>
             ) : (
               <>
-                <Text style={styles.horaTexto}>
-                  {g.horarios[0].hora} (en {g.minutosAlPrimero} min según tabla)
-                </Text>
-                <Text>{g.horarios.slice(1).map((h) => h.hora).join('   ')}</Text>
+                <Pressable onPress={() => pedirRecordatorio(g.horarios[0].hora, g.lineaId)}>
+                  <Text style={styles.horaTexto}>
+                    {g.horarios[0].hora} (en {g.minutosAlPrimero} min según tabla)
+                  </Text>
+                </Pressable>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  {g.horarios.slice(1).map((h) => (
+                    <Pressable key={h.id} onPress={() => pedirRecordatorio(h.hora, g.lineaId)} hitSlop={8}>
+                      <Text>{h.hora}</Text>
+                    </Pressable>
+                  ))}
+                </View>
               </>
             )}
           </View>
