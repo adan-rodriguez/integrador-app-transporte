@@ -1,8 +1,11 @@
+import { leerDeCache } from '@/db';
+import type { Feriado } from '@/tipos/api';
 import { mockAvisos, mockLineas } from '../mocks';
 import { ApiError, ApiResponse, Aviso, Horario, Linea, Parada, ReporteDeDemora } from '../tipos';
 import { distanciaMetros } from '../utilidades/coordenadas';
-import { pedirDatos } from './cliente';
-
+import { proximosLocales } from '../utilidades/horarios';
+import { conCache } from './cache';
+import { ErrorApi, pedirDatos } from './cliente';
 
 
 // Utilidad para simular latencia de red
@@ -32,36 +35,79 @@ export const obtenerParadasCercanas = async (
   lng: number,
   radioMetros = 500,
   q?: string
-): Promise<ApiResponse<ParadaCercana[]>> => {
-  const res = await pedirDatos<Parada[]>('/paradas', {
-    consulta: { latitud: lat, longitud: lng, radioMetros, orden: 'distancia', porPagina: 1000, q },
-  });
+): Promise<ApiResponse<ParadaCercana[]> & { guardadoEn: Date | null }> => {
   const yo = { latitud: lat, longitud: lng };
-  const datos = res.datos.map((p) => ({ ...p, distanciaMetros: distanciaMetros(yo, p.coordenadas) }));
-  return { datos };
-};
+  const conDistancia = (lista: Parada[]) =>
+    lista.map((p) => ({ ...p, distanciaMetros: distanciaMetros(yo, p.coordenadas) }));
 
-export const obtenerParadas = async (q?: string): Promise<ApiResponse<Parada[]>> => {
-  const res = await pedirDatos<Parada[]>('/paradas', {
-    consulta: { porPagina: 1000, orden: 'nombre', q },
-  });
-  return { datos: res.datos };
-};
-
-export const obtenerParada = async (id: string): Promise<ApiResponse<Parada> | ApiError> => {
   try {
-    const res = await pedirDatos<Parada>(`/paradas/${id}`);
-    return { datos: res.datos };
+    const res = await pedirDatos<Parada[]>('/paradas', {
+      consulta: { latitud: lat, longitud: lng, radioMetros, orden: 'distancia', porPagina: 1000, q },
+    });
+    return { datos: conDistancia(res.datos), guardadoEn: null };
+  } catch (e) {
+    // Sin red: filtramos en el teléfono la lista completa que quedó guardada
+    const guardado = leerDeCache<Parada[]>('paradas:');
+    if (!(e instanceof ErrorApi && e.esDeRed) || !guardado) throw e;
+    const datos = conDistancia(guardado.datos)
+      .filter((p) => p.distanciaMetros <= radioMetros)
+      .filter((p) => !q || p.nombre.toLowerCase().includes(q.toLowerCase()))
+      .sort((a, b) => a.distanciaMetros - b.distanciaMetros);
+    return { datos, guardadoEn: guardado.guardadoEn };
+  }
+};
+
+export const obtenerParadas = async (q?: string) => {
+  const r = await conCache(`paradas:${q ?? ''}`, async () => {
+    const res = await pedirDatos<Parada[]>('/paradas', {
+      consulta: { porPagina: 1000, orden: 'nombre', q },
+    });
+    return res.datos;
+  });
+  return { datos: r.datos, guardadoEn: r.guardadoEn };
+};
+
+export const obtenerParada = async (id: string): Promise<(ApiResponse<Parada> & { guardadoEn?: Date | null }) | ApiError> => {
+  try {
+    const r = await conCache(`parada:${id}`, async () => (await pedirDatos<Parada>(`/paradas/${id}`)).datos);
+    return { datos: r.datos, guardadoEn: r.guardadoEn };
   } catch (e: any) {
     return { error: { codigo: e.codigo ?? 'ERROR', mensaje: e.message } };
   }
 };
 
-export const obtenerHorariosParada = async (paradaId: string): Promise<ApiResponse<Horario[]>> => {
-  const res = await pedirDatos<Horario[]>(`/paradas/${paradaId}/proximos`, {
-    consulta: { cantidad: 3 },
-  });
-  return { datos: res.datos };
+// Baja la tabla completa de la parada y los feriados, para poder calcular sin red
+async function guardarTablaDeParada(paradaId: string) {
+  const anio = new Date().getFullYear();
+  await Promise.all([
+    conCache(`horarios:${paradaId}`, async () =>
+      (await pedirDatos<Horario[]>('/horarios', { consulta: { paradaId, porPagina: 5000 } })).datos
+    ),
+    conCache('feriados', async () => {
+      const [este, proximo] = await Promise.all([
+        pedirDatos<Feriado[]>('/feriados', { consulta: { anio } }),
+        pedirDatos<Feriado[]>('/feriados', { consulta: { anio: anio + 1 } }),
+      ]);
+      return [...este.datos, ...proximo.datos];
+    }),
+  ]);
+}
+
+export const obtenerHorariosParada = async (
+  paradaId: string
+): Promise<ApiResponse<Horario[]> & { guardadoEn: Date | null }> => {
+  try {
+    const res = await pedirDatos<Horario[]>(`/paradas/${paradaId}/proximos`, { consulta: { cantidad: 3 } });
+    guardarTablaDeParada(paradaId).catch(() => {}); // en segundo plano, no hace esperar a la pantalla
+    return { datos: res.datos, guardadoEn: null };
+  } catch (e) {
+    // Sin red: calculamos los próximos con la tabla guardada
+    const tabla = leerDeCache<Horario[]>(`horarios:${paradaId}`);
+    if (!(e instanceof ErrorApi && e.esDeRed) || !tabla) throw e;
+    const feriados = leerDeCache<Feriado[]>('feriados');
+    const fechas = new Set((feriados?.datos ?? []).map((f) => f.fecha));
+    return { datos: proximosLocales(tabla.datos, fechas), guardadoEn: tabla.guardadoEn };
+  }
 };
 
 export const obtenerLineasDeParada = async (lineaIds: string[]): Promise<ApiResponse<Linea[]>> => {
@@ -70,6 +116,10 @@ export const obtenerLineasDeParada = async (lineaIds: string[]): Promise<ApiResp
 };
 
 // FIN PARADAAS=======================================================================================================================================
+
+
+
+
 
 export const obtenerAvisos = async (): Promise<ApiResponse<Aviso[]>> => {
   await delay(1000);

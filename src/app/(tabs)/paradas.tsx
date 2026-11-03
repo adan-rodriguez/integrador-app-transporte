@@ -8,6 +8,8 @@ import { Parada } from "@/tipos";
 import MapaParadas from "@/componentes/MapaParadas";
 import { formatearDistancia } from "@/utilidades/coordenadas";
 
+import { haceCuanto } from "@/utilidades/fechas";
+
 type Fila = Parada & { distanciaMetros?: number };
 
 // TODO: permitir un radio manual (TextInput numérico, entre 1 y 50000 m, que es el límite de la API)
@@ -22,6 +24,7 @@ export default function Paradas() {
   const [vista, setVista] = useState<"lista" | "mapa">("lista");
   const [busqueda, setBusqueda] = useState("");
   const [q, setQ] = useState("");
+  const [guardadoEn, setGuardadoEn] = useState<Date | null>(null);
 
 
 
@@ -42,7 +45,10 @@ export default function Paradas() {
         ? obtenerParadasCercanas(posicion.coords.latitude, posicion.coords.longitude, radio, q)
         : obtenerParadas(q);
     pedido
-      .then((res) => setParadas(res.datos))
+      .then((res) => {
+        setParadas(res.datos);
+        setGuardadoEn(res.guardadoEn);
+      })
       .catch((e) => setError(e.message))
       .finally(() => setBuscando(false));
   }, [estado, posicion, radio, q]);
@@ -104,10 +110,15 @@ export default function Paradas() {
           );
         })}
       </View>
-      
+
 
       {error && <Text>{error}</Text>}
-
+      {guardadoEn && (
+        <Text style={{ padding: 8, borderRadius: 8, backgroundColor: "#fff3cd", color: "#5c4400" }}>
+          Sin conexión. Mostramos lo guardado {haceCuanto(guardadoEn)}.
+        </Text>
+      )}
+      
       {vista === "lista" ? (
         <FlatList
           data={paradas}

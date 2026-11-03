@@ -7,6 +7,7 @@ import { Alert, Button, FlatList, Pressable, StyleSheet, Text, View } from 'reac
 import { useRumbo } from '@/hooks/useRumbo';
 import FlechaRumbo from '@/componentes/FlechaRumbo';
 import { formatearDistancia } from '@/utilidades/coordenadas';
+import { haceCuanto } from '@/utilidades/fechas';
 
 //FAVORITO============================================================================================================
 import Ionicons from '@react-native-vector-icons/ionicons';
@@ -17,6 +18,7 @@ import { useSesion } from '@/sesion';
 //NOTIFICACIO ALERTA============================================================================================================
 import { programarRecordatorio } from '@/servicios/recordatorios';
 //=======================================================================================================================
+
 
 export default function ParadaDetailScreen() {
   // TODO: usar useColores() de @/tema en vez de colores fijos (en modo oscuro se ve mal)
@@ -32,6 +34,9 @@ export default function ParadaDetailScreen() {
 
   const { usuario, reemplazarUsuario } = useSesion();
   const esFavorita = !!parada && !!usuario?.paradasFavoritas.includes(parada.id);
+
+
+  const [guardadoEn, setGuardadoEn] = useState<Date | null>(null);
 
   async function alternarFavorita() {
     if (!parada) return;
@@ -52,10 +57,10 @@ export default function ParadaDetailScreen() {
   }
   //=======================================================================================================================
 
-  useEffect(() => {
+    useEffect(() => {
     Promise.all([
       obtenerParada(id as string),
-      obtenerHorariosParada(id as string)
+      obtenerHorariosParada(id as string).catch(() => null), // sin red y sin nada guardado
     ]).then(([resParada, resHorarios]) => {
       if ('datos' in resParada) {
         setParada(resParada.datos);
@@ -63,7 +68,10 @@ export default function ParadaDetailScreen() {
           .then((r) => setLineas(r.datos))
           .catch(() => { }); // si falla, mostramos el id como hasta ahora
       }
-      if ('datos' in resHorarios) setHorarios(resHorarios.datos);
+      if (resHorarios) {
+        setHorarios(resHorarios.datos);
+        setGuardadoEn(resHorarios.guardadoEn);
+      }
       setLoading(false);
     });
   }, [id]);
@@ -95,7 +103,7 @@ export default function ParadaDetailScreen() {
     ]);
   }
 
-  return (
+   return (
     <View style={styles.container}>
       <View style={styles.encabezado}>
         <View style={{ flex: 1 }}>
@@ -120,6 +128,12 @@ export default function ParadaDetailScreen() {
           </Pressable>
         </Link>
       </View>
+
+      {guardadoEn && (
+        <Text style={styles.avisoSinRed}>
+          Sin conexión. Horarios calculados con la tabla guardada {haceCuanto(guardadoEn)}.
+        </Text>
+      )}
 
       <Text style={styles.subtitle}>Próximos horarios (según tabla)</Text>
       <Text style={{ fontSize: 12, marginBottom: 4 }}>Tocá un horario para que te avisemos 10 min antes.</Text>
@@ -152,6 +166,7 @@ export default function ParadaDetailScreen() {
         ListEmptyComponent={<Text>No hay servicio hoy ni mañana en esta parada.</Text>}
       />
 
+      {/* TODO (Noelia): elegir la línea a reportar entre las que pasan por la parada, no lin-05 fija */}
       <Link href={`/reporte/lin-05/${parada.id}`} asChild>
         <Button title="Reportar una demora" color="orange" />
       </Link>
@@ -169,4 +184,5 @@ const styles = StyleSheet.create({
   linea: { fontSize: 16, fontWeight: '600' },
   encabezado: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rumbo: { alignItems: 'center', padding: 8, borderWidth: 1, borderColor: '#ccc', borderRadius: 10, minWidth: 64 },
+  avisoSinRed: { padding: 8, borderRadius: 8, backgroundColor: '#fff3cd', color: '#5c4400', marginTop: 8 },
 });
