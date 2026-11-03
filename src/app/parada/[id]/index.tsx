@@ -8,6 +8,8 @@ import { useRumbo } from '@/hooks/useRumbo';
 import FlechaRumbo from '@/componentes/FlechaRumbo';
 
 export default function ParadaDetailScreen() {
+  // TODO: usar useColores() de @/tema en vez de colores fijos (en modo oscuro se ve mal)
+  
   const { id } = useLocalSearchParams();
   const [parada, setParada] = useState<Parada | null>(null);
   const [horarios, setHorarios] = useState<Horario[]>([]);
