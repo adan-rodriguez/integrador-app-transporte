@@ -1,49 +1,167 @@
-import { View, Text, StyleSheet } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { obtenerLinea } from '../../servicios/api';
-import { Linea } from '../../tipos';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import MapaRecorrido from '@/componentes/MapaRecorrido';
+import { obtenerFeriados, obtenerHorariosLinea, obtenerLinea, obtenerParadas } from '@/servicios/api';
+import { Horario, Linea, Parada, Sentido, TipoDeDia } from '@/tipos';
+import { haceCuanto } from '@/utilidades/fechas';
+import { tipoDeDia } from '@/utilidades/horarios';
+
+// Opciones del selector de tipo de día: [valor, texto]
+const TIPOS: [TipoDeDia, string][] = [
+  ['habil', 'Hábiles'],
+  ['sabado', 'Sábados'],
+  ['domingo', 'Domingos'],
+  ['feriado', 'Feriados'],
+];
 
 export default function LineaDetailScreen() {
-  const { id } = useLocalSearchParams();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [linea, setLinea] = useState<Linea | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [paradas, setParadas] = useState<Map<string, Parada>>(new Map());
+  const [horarios, setHorarios] = useState<Horario[]>([]);
+  const [sentido, setSentido] = useState<Sentido>('ida');
+  const [tipo, setTipo] = useState<TipoDeDia>('habil');
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [guardadoEn, setGuardadoEn] = useState<Date | null>(null);
 
   useEffect(() => {
-    // TODO: Manejar el caso de que la respuesta sea un error (ApiError) o vacío
-    obtenerLinea(id as string).then(res => {
-      if ('datos' in res) {
-        setLinea(res.datos);
+    Promise.all([
+      obtenerLinea(id),
+      obtenerParadas().catch(() => null),
+      obtenerHorariosLinea(id).catch(() => null),
+      obtenerFeriados().catch(() => new Set<string>()),
+    ]).then(([resLinea, resParadas, resHorarios, feriados]) => {
+      if ('datos' in resLinea) {
+        setLinea(resLinea.datos);
+        setGuardadoEn(resLinea.guardadoEn ?? null);
+      } else {
+        setError(resLinea.error.mensaje);
       }
-      setLoading(false);
+      // Un Map por id para encontrar cada parada del recorrido rápido
+      if (resParadas) setParadas(new Map(resParadas.datos.map((p) => [p.id, p])));
+      if (resHorarios) setHorarios(resHorarios.datos);
+      setTipo(tipoDeDia(new Date(), feriados)); // arranca en el tipo de día de hoy
+      setCargando(false);
     });
   }, [id]);
 
-  if (loading) return <View style={styles.center}><Text>Cargando recorrido...</Text></View>;
-  if (!linea) return <View style={styles.center}><Text>Error: Línea no encontrada.</Text></View>;
+  if (cargando) return <ActivityIndicator style={{ flex: 1 }} />;
+  if (!linea) {
+    return (
+      <View style={styles.center}>
+        <Text>{error ?? 'No encontramos esta línea.'}</Text>
+      </View>
+    );
+  }
+
+  const recorrido = linea.recorridos.find((r) => r.sentido === sentido);
+  const paradasDelRecorrido = (recorrido?.paradaIds ?? [])
+    .map((pid) => paradas.get(pid))
+    .filter((p): p is Parada => p !== undefined);
+
+  // Salidas desde la primera parada del sentido elegido, para el tipo de día elegido
+  const cabecera = recorrido?.paradaIds[0];
+  const salidas = horarios
+    .filter((h) => h.paradaId === cabecera && h.sentido === sentido && h.tipoDeDia === tipo)
+    .map((h) => h.hora)
+    .sort();
 
   return (
-    <View style={styles.container}>
-      <Text style={[styles.title, { color: linea.color }]}>Línea {linea.numero}</Text>
-      <Text>{linea.nombre}</Text>
-      
-      {/* TODO: 
-          1. Renderizar el mapa (react-native-maps) con Polyline usando 'linea.recorridos[0].trazado'.
-          2. Mostrar botones para cambiar de sentido ("ida" / "vuelta").
-          3. Listar paradas ordenadas de ese sentido debajo del mapa.
-          4. Mostrar si hay un aviso de desvío vigente para esta línea.
-      */}
-      <View style={styles.mapPlaceholder}>
-        <Text>Mapa del recorrido aquí</Text>
-      </View>
-    </View>
+    <>
+      <Stack.Screen options={{ title: `Línea ${linea.numero}` }} />
+      <FlatList
+        data={paradasDelRecorrido}
+        keyExtractor={(p) => p.id}
+        contentContainerStyle={{ padding: 16, gap: 4 }}
+        ListHeaderComponent={
+          <View style={{ gap: 12, marginBottom: 8 }}>
+            <View>
+              <Text style={[styles.title, { color: linea.color }]}>Línea {linea.numero}</Text>
+              <Text>{linea.nombre} · {linea.empresa}</Text>
+              {!linea.activa && <Text style={styles.sinServicio}>Hoy sin servicio</Text>}
+            </View>
+
+            {guardadoEn && (
+              <Text style={styles.avisoSinRed}>Sin conexión. Recorrido guardado {haceCuanto(guardadoEn)}.</Text>
+            )}
+
+            {/* TODO: mostrar si hay un aviso de desvío vigente (cuando se haga avisos) */}
+
+            <View style={styles.selector}>
+              {linea.recorridos.map((r) => (
+                <Pressable
+                  key={r.sentido}
+                  onPress={() => setSentido(r.sentido)}
+                  style={[styles.opcion, sentido === r.sentido && { backgroundColor: '#ddd' }]}
+                >
+                  <Text style={{ fontWeight: '600', textAlign: 'center' }}>{r.sentido === 'ida' ? 'Ida' : 'Vuelta'}</Text>
+                  <Text style={{ fontSize: 12, textAlign: 'center' }}>{r.destino}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={styles.mapa}>
+              {recorrido && (
+                <MapaRecorrido trazado={recorrido.trazado} paradas={paradasDelRecorrido} color={linea.color} />
+              )}
+            </View>
+
+            <Text style={styles.subtitle}>Paradas {recorrido?.destino}</Text>
+          </View>
+        }
+        ListEmptyComponent={<Text>No pudimos cargar las paradas de este recorrido.</Text>}
+        ListFooterComponent={
+          <View style={{ gap: 8, marginTop: 16 }}>
+            <Text style={styles.subtitle}>
+              Horarios desde {cabecera ? paradas.get(cabecera)?.nombre : 'la cabecera'}
+            </Text>
+            <View style={styles.selector}>
+              {TIPOS.map(([valor, texto]) => (
+                <Pressable
+                  key={valor}
+                  onPress={() => setTipo(valor)}
+                  style={[styles.opcion, tipo === valor && { backgroundColor: '#ddd' }]}
+                >
+                  <Text style={{ textAlign: 'center', fontSize: 13 }}>{texto}</Text>
+                </Pressable>
+              ))}
+            </View>
+            {salidas.length === 0 ? (
+              <Text>No hay servicio ese día.</Text>
+            ) : (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+                {salidas.map((h) => (
+                  <Text key={h}>{h}</Text>
+                ))}
+              </View>
+            )}
+          </View>
+        }
+        renderItem={({ item, index }) => (
+          <Link href={`/parada/${item.id}`} asChild>
+            <Pressable style={styles.parada}>
+              <Text style={styles.numero}>{index + 1}</Text>
+              <Text style={{ flex: 1 }}>{item.nombre}</Text>
+            </Pressable>
+          </Link>
+        )}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   title: { fontSize: 24, fontWeight: 'bold' },
-  mapPlaceholder: { height: 300, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center', marginTop: 16 }
+  subtitle: { fontSize: 18, fontWeight: '600' },
+  sinServicio: { color: '#b00020', fontWeight: '600', marginTop: 4 },
+  avisoSinRed: { padding: 8, borderRadius: 8, backgroundColor: '#fff3cd', color: '#5c4400' },
+  selector: { flexDirection: 'row', borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
+  opcion: { flex: 1, padding: 10 },
+  mapa: { height: 260, borderRadius: 10, overflow: 'hidden' },
+  parada: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' },
+  numero: { width: 24, textAlign: 'center', fontWeight: '600' },
 });
-

@@ -1,4 +1,5 @@
 import { Coordenadas } from "@/tipos";
+import type { LatLng } from "react-native-maps";
 
 // Distancia en metros entre dos puntos (fórmula de Haversine)
 export function distanciaMetros(a: Coordenadas, b: Coordenadas): number {
@@ -27,4 +28,10 @@ export function rumboGrados(a: Coordenadas, b: Coordenadas): number {
 export function formatearDistancia(metros: number): string {
   if (metros < 1000) return `${Math.round(metros)} m`;
   return `${(metros / 1000).toFixed(1).replace('.', ',')} km`;
+}
+
+
+// La API usa latitud/longitud; react-native-maps pide latitude/longitude
+export function aLatLng(c: Coordenadas): LatLng {
+  return { latitude: c.latitud, longitude: c.longitud };
 }
