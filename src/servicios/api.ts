@@ -166,10 +166,10 @@ export const obtenerHorariosLinea = async (lineaId: string) => {
 // FIN LINEAS=======================================================================================================================================
 
 
-export const obtenerAvisos = async (): Promise<ApiResponse<Aviso[]>> => {
-  await delay(1000);
-  return { datos: mockAvisos };
-};
+// export const obtenerAvisos = async (): Promise<ApiResponse<Aviso[]>> => {
+//   await delay(1000);
+//   return { datos: mockAvisos };
+// };
 
 export const enviarReporte = async (reporte: Omit<ReporteDeDemora, 'id' | 'sincronizado'>): Promise<ApiResponse<ReporteDeDemora>> => {
   await delay(1500);
@@ -181,3 +181,31 @@ export const enviarReporte = async (reporte: Omit<ReporteDeDemora, 'id' | 'sincr
   };
   return { datos: nuevoReporte };
 };
+
+
+// AVISOS=======================================================================================================================================
+
+// Vigentes por defecto. Con lineaId, solo los que mencionan esa línea
+export const obtenerAvisos = async (lineaId?: string) => {
+  const r = await conCache(`avisos:${lineaId ?? ''}`, async () =>
+    (await pedirDatos<Aviso[]>('/avisos', { consulta: { estado: 'vigentes', lineaId, porPagina: 100 } })).datos
+  );
+  return { datos: r.datos, guardadoEn: r.guardadoEn };
+};
+
+export const obtenerAviso = async (
+  id: string
+): Promise<(ApiResponse<Aviso> & { guardadoEn?: Date | null }) | ApiError> => {
+  try {
+    const r = await conCache(`aviso:${id}`, async () => (await pedirDatos<Aviso>(`/avisos/${id}`)).datos);
+    return { datos: r.datos, guardadoEn: r.guardadoEn };
+  } catch (e: any) {
+    // Sin red: lo buscamos en el listado guardado
+    const listado = leerDeCache<Aviso[]>('avisos:');
+    const aviso = listado?.datos.find((a) => a.id === id);
+    if (aviso && e instanceof ErrorApi && e.esDeRed) return { datos: aviso, guardadoEn: listado!.guardadoEn };
+    return { error: { codigo: e.codigo ?? 'ERROR', mensaje: e.message } };
+  }
+};
+
+// FIN AVISOS===================================================================================================================================

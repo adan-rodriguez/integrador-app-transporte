@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import MapaRecorrido from '@/componentes/MapaRecorrido';
-import { obtenerFeriados, obtenerHorariosLinea, obtenerLinea, obtenerParadas } from '@/servicios/api';
-import { Horario, Linea, Parada, Sentido, TipoDeDia } from '@/tipos';
+import { obtenerAvisos, obtenerFeriados, obtenerHorariosLinea, obtenerLinea, obtenerParadas } from '@/servicios/api';
+import { Aviso, Horario, Linea, Parada, Sentido, TipoDeDia } from '@/tipos';
 import { haceCuanto } from '@/utilidades/fechas';
 import { tipoDeDia } from '@/utilidades/horarios';
+
 
 // Opciones del selector de tipo de día: [valor, texto]
 const TIPOS: [TipoDeDia, string][] = [
@@ -26,6 +27,7 @@ export default function LineaDetailScreen() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [guardadoEn, setGuardadoEn] = useState<Date | null>(null);
+  const [avisos, setAvisos] = useState<Aviso[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -33,7 +35,8 @@ export default function LineaDetailScreen() {
       obtenerParadas().catch(() => null),
       obtenerHorariosLinea(id).catch(() => null),
       obtenerFeriados().catch(() => new Set<string>()),
-    ]).then(([resLinea, resParadas, resHorarios, feriados]) => {
+      obtenerAvisos(id).catch(() => null),
+    ]).then(([resLinea, resParadas, resHorarios, feriados, resAvisos]) => {
       if ('datos' in resLinea) {
         setLinea(resLinea.datos);
         setGuardadoEn(resLinea.guardadoEn ?? null);
@@ -43,6 +46,7 @@ export default function LineaDetailScreen() {
       // Un Map por id para encontrar cada parada del recorrido rápido
       if (resParadas) setParadas(new Map(resParadas.datos.map((p) => [p.id, p])));
       if (resHorarios) setHorarios(resHorarios.datos);
+      if (resAvisos) setAvisos(resAvisos.datos);
       setTipo(tipoDeDia(new Date(), feriados)); // arranca en el tipo de día de hoy
       setCargando(false);
     });
@@ -88,7 +92,17 @@ export default function LineaDetailScreen() {
               <Text style={styles.avisoSinRed}>Sin conexión. Recorrido guardado {haceCuanto(guardadoEn)}.</Text>
             )}
 
-            {/* TODO: mostrar si hay un aviso de desvío vigente (cuando se haga avisos) */}
+            {avisos.map((a) => (
+              <Link key={a.id} href={`/aviso/${a.id}`} asChild>
+                <Pressable style={styles.aviso}>
+                  <Text style={{ fontWeight: '700', color: '#b35c00' }}>
+                    {a.gravedad === 'suspension' ? 'SUSPENSIÓN' : a.gravedad === 'desvio' ? 'DESVÍO' : 'AVISO'}
+                  </Text>
+                  <Text>{a.titulo}</Text>
+                  <Text style={{ fontSize: 12 }}>Tocá para ver el detalle</Text>
+                </Pressable>
+              </Link>
+            ))}
 
             <View style={styles.selector}>
               {linea.recorridos.map((r) => (
@@ -164,4 +178,5 @@ const styles = StyleSheet.create({
   mapa: { height: 260, borderRadius: 10, overflow: 'hidden' },
   parada: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' },
   numero: { width: 24, textAlign: 'center', fontWeight: '600' },
+  aviso: { padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#b35c00', backgroundColor: '#fff4e5', gap: 2 },
 });

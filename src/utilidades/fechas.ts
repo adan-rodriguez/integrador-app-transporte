@@ -8,3 +8,11 @@ export function haceCuanto(fecha: Date, ahora = new Date()): string {
   const dias = Math.floor(horas / 24);
   return `hace ${dias} ${dias === 1 ? "día" : "días"}`;
 }
+
+// "4/11 09:30" en la hora del teléfono
+export function formatearFechaHora(iso: string): string {
+  const f = new Date(iso);
+  const hh = String(f.getHours()).padStart(2, "0");
+  const mm = String(f.getMinutes()).padStart(2, "0");
+  return `${f.getDate()}/${f.getMonth() + 1} ${hh}:${mm}`;
+}

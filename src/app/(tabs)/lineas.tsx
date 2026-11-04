@@ -2,8 +2,8 @@ import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { obtenerLineas } from '@/servicios/api';
-import { Linea } from '@/tipos';
+import { obtenerAvisos, obtenerLineas } from '@/servicios/api';
+import { Gravedad, Linea } from '@/tipos';
 import { haceCuanto } from '@/utilidades/fechas';
 
 export default function LineasScreen() {
@@ -11,14 +11,25 @@ export default function LineasScreen() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [guardadoEn, setGuardadoEn] = useState<Date | null>(null);
+  const [estados, setEstados] = useState<Map<string, Gravedad>>(new Map());
+
+
 
   function cargar() {
     setCargando(true);
     setError(null);
-    obtenerLineas()
-      .then((res) => {
+    Promise.all([obtenerLineas(), obtenerAvisos().catch(() => null)])
+      .then(([res, resAvisos]) => {
         setLineas(res.datos);
         setGuardadoEn(res.guardadoEn);
+        if (resAvisos) {
+          // La API ordena por gravedad (suspensión primero), así que el primero de cada línea es el más grave
+          const mapa = new Map<string, Gravedad>();
+          for (const a of resAvisos.datos) {
+            for (const lid of a.lineaIds) if (!mapa.has(lid)) mapa.set(lid, a.gravedad);
+          }
+          setEstados(mapa);
+        }
       })
       .catch((e) => setError(e.message))
       .finally(() => setCargando(false));
@@ -52,10 +63,16 @@ export default function LineasScreen() {
         ListEmptyComponent={<Text>No hay líneas cargadas.</Text>}
         renderItem={({ item }) => (
           <Link href={`/linea/${item.id}`} asChild>
-                        <Pressable style={StyleSheet.flatten([styles.item, { borderLeftColor: item.color }])}>
+            <Pressable style={StyleSheet.flatten([styles.item, { borderLeftColor: item.color }])}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={styles.itemTitle}>Línea {item.numero}</Text>
-                {!item.activa && <Text style={styles.sinServicio}>Sin servicio</Text>}
+                {!item.activa ? (
+                  <Text style={styles.sinServicio}>Sin servicio</Text>
+                ) : estados.get(item.id) === 'suspension' ? (
+                  <Text style={styles.sinServicio}>Suspendida</Text>
+                ) : estados.get(item.id) === 'desvio' ? (
+                  <Text style={styles.desvio}>Desvío</Text>
+                ) : null}
               </View>
               <Text>{item.nombre}</Text>
               <Text style={{ fontSize: 12 }}>{item.empresa}</Text>
@@ -75,4 +92,5 @@ const styles = StyleSheet.create({
   itemTitle: { fontSize: 18, fontWeight: 'bold' },
   sinServicio: { fontSize: 12, color: '#b00020', fontWeight: '600' },
   avisoSinRed: { padding: 8, borderRadius: 8, backgroundColor: '#fff3cd', color: '#5c4400' },
+    desvio: { fontSize: 12, color: '#b35c00', fontWeight: '600' },
 });
