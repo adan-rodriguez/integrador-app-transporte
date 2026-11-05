@@ -1,6 +1,8 @@
 import { router } from "expo-router";
+import { useMemo } from "react";
 import MapView, { Marker } from "react-native-maps";
 
+import MapaWeb from "@/componentes/MapaWeb";
 import { Parada } from "@/tipos";
 
 type Props = {
@@ -11,9 +13,9 @@ type Props = {
 // Centro de Paraná, por si no hay ubicación
 const PARANA = { latitud: -31.7413, longitud: -60.5115 };
 
-export default function MapaParadas({ paradas, centro }: Props) {
+// ---------- Versión Google (react-native-maps): en el APK necesita clave de Google Maps ----------
+function MapaParadasGoogle({ paradas, centro }: Props) {
   const c = centro ?? PARANA;
-
   return (
     <MapView
       style={{ flex: 1 }}
@@ -37,3 +39,30 @@ export default function MapaParadas({ paradas, centro }: Props) {
     </MapView>
   );
 }
+
+// ---------- Versión web (MapLibre + OpenFreeMap): sin clave ----------
+function MapaParadasWeb({ paradas, centro }: Props) {
+  const marcadores = useMemo(
+    () =>
+      paradas.map((p) => ({
+        id: p.id,
+        lat: p.coordenadas.latitud,
+        lng: p.coordenadas.longitud,
+        titulo: p.nombre,
+      })),
+    [paradas]
+  );
+  const yo = centro ? { lat: centro.latitud, lng: centro.longitud } : null;
+
+  return (
+    <MapaWeb
+      marcadores={marcadores}
+      centro={yo}
+      ubicacion={yo}
+      onMarcadorPress={(id) => router.push(`/parada/${id}`)}
+    />
+  );
+}
+
+// Para volver a Google, cambiá esta línea por: export default MapaParadasGoogle;
+export default MapaParadasWeb;
