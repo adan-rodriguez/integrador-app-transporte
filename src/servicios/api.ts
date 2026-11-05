@@ -1,11 +1,12 @@
 import { leerDeCache } from '@/db';
 import type { Feriado } from '@/tipos/api';
 import { mockAvisos } from '../mocks';
-import { ApiError, ApiResponse, Aviso, Horario, Linea, Parada, ReporteDeDemora } from '../tipos';
+import { ApiError, ApiResponse, Aviso, Horario, Linea, MotivoDemora, Parada, ReporteDeDemora } from '../tipos';
 import { distanciaMetros } from '../utilidades/coordenadas';
 import { proximosLocales } from '../utilidades/horarios';
 import { conCache } from './cache';
 import { ErrorApi, pedirDatos } from './cliente';
+import { File } from 'expo-file-system';
 
 
 // Utilidad para simular latencia de red
@@ -171,16 +172,16 @@ export const obtenerHorariosLinea = async (lineaId: string) => {
 //   return { datos: mockAvisos };
 // };
 
-export const enviarReporte = async (reporte: Omit<ReporteDeDemora, 'id' | 'sincronizado'>): Promise<ApiResponse<ReporteDeDemora>> => {
-  await delay(1500);
-  // Simular error de red feo a veces? Podríamos, pero por ahora solo respondemos éxito.
-  const nuevoReporte: ReporteDeDemora = {
-    ...reporte,
-    id: `rep-${Math.floor(Math.random() * 10000)}`,
-    sincronizado: true,
-  };
-  return { datos: nuevoReporte };
-};
+// export const enviarReporte = async (reporte: Omit<ReporteDeDemora, 'id' | 'sincronizado'>): Promise<ApiResponse<ReporteDeDemora>> => {
+//   await delay(1500);
+//   // Simular error de red feo a veces? Podríamos, pero por ahora solo respondemos éxito.
+//   const nuevoReporte: ReporteDeDemora = {
+//     ...reporte,
+//     id: `rep-${Math.floor(Math.random() * 10000)}`,
+//     sincronizado: true,
+//   };
+//   return { datos: nuevoReporte };
+// };
 
 
 // AVISOS=======================================================================================================================================
@@ -209,3 +210,49 @@ export const obtenerAviso = async (
 };
 
 // FIN AVISOS===================================================================================================================================
+
+
+// REPORTES=====================================================================================================================================
+
+// Sube una foto del teléfono y devuelve la URL que hay que mandar en el reporte
+export const subirFoto = async (uriLocal: string): Promise<string> => {
+  const formulario = new FormData();
+  formulario.append('archivo', new File(uriLocal));
+  const res = await pedirDatos<{ url: string }>('/archivos', { metodo: 'POST', formulario });
+  return res.datos.url;
+};
+
+export type NuevoReporte = {
+  id: string;
+  lineaId: string;
+  paradaId: string;
+  motivo: MotivoDemora;
+  comentario: string | null;
+  fotoUri: string | null;
+  fechaHora: string;
+};
+
+// El id lo genera el teléfono: si se reenvía el mismo, la API no lo duplica
+export const nuevoIdReporte = () => `rep-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+
+export const enviarReporte = async (reporte: NuevoReporte) => {
+  const res = await pedirDatos<ReporteDeDemora>('/reportes-demora', { metodo: 'POST', cuerpo: reporte });
+  return res.datos;
+};
+
+// Reportes de los últimos 90 minutos en una parada (público)
+export const obtenerReportesParada = async (paradaId: string) => {
+  const res = await pedirDatos<ReporteDeDemora[]>('/reportes-demora', { consulta: { paradaId, porPagina: 50 } });
+  return res.datos;
+};
+
+export const confirmarReporte = async (reporteId: string) => {
+  const res = await pedirDatos<ReporteDeDemora>(`/reportes-demora/${reporteId}/confirmaciones`, { metodo: 'POST' });
+  return res.datos;
+};
+
+
+
+// FIN REPORTES=================================================================================================================================
+
+

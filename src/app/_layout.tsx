@@ -7,6 +7,8 @@ import Desbloqueo from "@/componentes/desbloqueo";
 import { SesionProvider, useSesion } from "@/sesion";
 import { useColores } from "@/tema";
 
+import EstadoRed from "@/componentes/EstadoRed";
+
 function Contenido() {
   const { estado } = useSesion();
   const colores = useColores();
@@ -29,24 +31,27 @@ function Contenido() {
   if (estado === "bloqueada") return <Desbloqueo />;
 
   return (
-    <Stack
-      screenOptions={{
-        headerStyle: { backgroundColor: colores.fondo },
-        headerTintColor: colores.texto,
-        contentStyle: { backgroundColor: colores.fondo },
-      }}
-    >
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-      <Stack.Screen name="linea/[id]" options={{ title: "Detalle de Línea" }} />
-      <Stack.Screen name="parada" options={{ headerShown: false }} />
-      <Stack.Screen name="aviso/[id]" options={{ title: "Aviso" }} />
-      <Stack.Screen
-        name="reporte/[id_linea]/[id_parada]"
-        options={{ title: "Reportar Demora", presentation: "modal" }}
-      />
-      <Stack.Screen name="ingresar" options={{ title: "Ingresar" }} />
-      <Stack.Screen name="registro" options={{ title: "Crear cuenta" }} />
-    </Stack>
+    <View style={{ flex: 1 }}>
+      <EstadoRed />
+      <Stack
+        screenOptions={{
+          headerStyle: { backgroundColor: colores.fondo },
+          headerTintColor: colores.texto,
+          contentStyle: { backgroundColor: colores.fondo },
+        }}
+      >
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen name="linea/[id]" options={{ title: "Detalle de Línea" }} />
+        <Stack.Screen name="parada" options={{ headerShown: false }} />
+        <Stack.Screen name="aviso/[id]" options={{ title: "Aviso" }} />
+        <Stack.Screen
+          name="reporte/[id_linea]/[id_parada]"
+          options={{ title: "Reportar Demora", presentation: "modal" }}
+        />
+        <Stack.Screen name="ingresar" options={{ title: "Ingresar" }} />
+        <Stack.Screen name="registro" options={{ title: "Crear cuenta" }} />
+      </Stack>
+    </View>
   );
 }
 

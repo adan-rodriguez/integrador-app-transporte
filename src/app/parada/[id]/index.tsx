@@ -1,5 +1,5 @@
-import { obtenerHorariosParada, obtenerLineasDeParada, obtenerParada } from '@/servicios/api';
-import { Horario, Linea, Parada } from '@/tipos';
+import { confirmarReporte, obtenerHorariosParada, obtenerLineasDeParada, obtenerParada, obtenerReportesParada } from '@/servicios/api';
+import { Horario, Linea, MotivoDemora, Parada, ReporteDeDemora } from '@/tipos';
 import { agruparPorLinea } from '@/utilidades/horarios';
 import { Link, useLocalSearchParams, router } from 'expo-router';
 import { useEffect, useState } from 'react';
@@ -20,6 +20,14 @@ import { programarRecordatorio } from '@/servicios/recordatorios';
 //=======================================================================================================================
 
 
+const MOTIVO_TEXTO: Record<MotivoDemora, string> = {
+  no_paso: 'no pasó',
+  paso_lleno: 'pasó lleno y no paró',
+  demorado: 'viene demorado',
+  unidad_rota: 'unidad rota',
+  calle_cortada: 'calle cortada',
+};
+
 export default function ParadaDetailScreen() {
   // TODO: usar useColores() de @/tema en vez de colores fijos (en modo oscuro se ve mal)
 
@@ -34,6 +42,9 @@ export default function ParadaDetailScreen() {
 
   const { usuario, reemplazarUsuario } = useSesion();
   const esFavorita = !!parada && !!usuario?.paradasFavoritas.includes(parada.id);
+
+  //REPORTE============================================================================================================
+  const [reportes, setReportes] = useState<ReporteDeDemora[]>([]);
 
 
   const [guardadoEn, setGuardadoEn] = useState<Date | null>(null);
@@ -55,9 +66,27 @@ export default function ParadaDetailScreen() {
       reemplazarUsuario(datos);
     }
   }
+
+  function cargarReportes() {
+    obtenerReportesParada(id as string)
+      .then(setReportes)
+      .catch(() => { }); // sin red no hay reportes: necesitan conexión
+  }
+
+  async function confirmar(reporteId: string) {
+    if (!usuario) return router.push('/ingresar');
+    try {
+      await confirmarReporte(reporteId);
+      cargarReportes();
+    } catch (e: any) {
+      Alert.alert('No se pudo confirmar', e.message);
+    }
+  }
+
   //=======================================================================================================================
 
-    useEffect(() => {
+  useEffect(() => {
+    cargarReportes();
     Promise.all([
       obtenerParada(id as string),
       obtenerHorariosParada(id as string).catch(() => null), // sin red y sin nada guardado
@@ -103,7 +132,7 @@ export default function ParadaDetailScreen() {
     ]);
   }
 
-   return (
+  return (
     <View style={styles.container}>
       <View style={styles.encabezado}>
         <View style={{ flex: 1 }}>
@@ -167,9 +196,42 @@ export default function ParadaDetailScreen() {
       />
 
       {/* TODO (Noelia): elegir la línea a reportar entre las que pasan por la parada, no lin-05 fija */}
-      <Link href={`/reporte/lin-05/${parada.id}`} asChild>
-        <Button title="Reportar una demora" color="orange" />
-      </Link>
+      <View style={{ gap: 8, marginTop: 12 }}>
+        
+        {reportes.length > 0 && (
+          <View style={{ gap: 6, marginTop: 12 }}>
+            <Text style={styles.subtitle}>Reportes de pasajeros</Text>
+            {reportes.map((r) => (
+              <View key={r.id} style={styles.reporte}>
+                <Text style={{ fontWeight: '600' }}>
+                  {nombreLinea(r.lineaId)}: {MOTIVO_TEXTO[r.motivo]}
+                </Text>
+                <Text style={{ fontSize: 12 }}>
+                  {haceCuanto(new Date(r.fechaHora))} · {r.confirmaciones} confirmaron
+                </Text>
+                {r.comentario && <Text>{r.comentario}</Text>}
+                {r.usuarioId !== usuario?.id && (
+                  <Pressable onPress={() => confirmar(r.id)} style={styles.botonConfirmar}>
+                    <Text>Yo también lo veo</Text>
+                  </Pressable>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
+        <Text style={styles.subtitle}>¿Tu colectivo está demorado?</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {parada.lineaIds.map((lid) => (
+            <Link key={lid} href={`/reporte/${lid}/${parada.id}`} asChild>
+              <Pressable style={styles.chipReporte}>
+                <Text style={{ fontWeight: '600' }}>
+                  Reportar línea {lineas.find((l) => l.id === lid)?.numero ?? lid}
+                </Text>
+              </Pressable>
+            </Link>
+          ))}
+        </View>
+      </View>
     </View>
   );
 }
@@ -185,4 +247,7 @@ const styles = StyleSheet.create({
   encabezado: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rumbo: { alignItems: 'center', padding: 8, borderWidth: 1, borderColor: '#ccc', borderRadius: 10, minWidth: 64 },
   avisoSinRed: { padding: 8, borderRadius: 8, backgroundColor: '#fff3cd', color: '#5c4400', marginTop: 8 },
+  chipReporte: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#ffe0b2' },
+    reporte: { padding: 10, borderRadius: 8, backgroundColor: '#fff4e5', gap: 2 },
+  botonConfirmar: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderRadius: 8 },
 });
