@@ -2,12 +2,13 @@ import { Link } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from "react-native";
 
+import MapaParadas from "@/componentes/MapaParadas";
 import { useUbicacion } from "@/hooks/useUbicacion";
 import { obtenerParadas, obtenerParadasCercanas } from "@/servicios/api";
 import { Parada } from "@/tipos";
-import MapaParadas from "@/componentes/MapaParadas";
 import { formatearDistancia } from "@/utilidades/coordenadas";
 
+import { guardarRadioParadas, guardarVistaParadas, leerRadioParadas, leerVistaParadas } from "@/servicios/preferencias";
 import { haceCuanto } from "@/utilidades/fechas";
 
 type Fila = Parada & { distanciaMetros?: number };
@@ -17,11 +18,11 @@ const RADIOS: (number | null)[] = [null, 100, 300, 500];
 
 export default function Paradas() {
   const { estado, posicion, reintentar } = useUbicacion();
-  const [radio, setRadio] = useState<number | null>(300);
   const [paradas, setParadas] = useState<Fila[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [vista, setVista] = useState<"lista" | "mapa">("lista");
+  const [radio, setRadio] = useState<number | null>(leerRadioParadas);
+  const [vista, setVista] = useState<"lista" | "mapa">(leerVistaParadas);
   const [busqueda, setBusqueda] = useState("");
   const [q, setQ] = useState("");
   const [guardadoEn, setGuardadoEn] = useState<Date | null>(null);
@@ -80,7 +81,7 @@ export default function Paradas() {
         {(["lista", "mapa"] as const).map((v) => (
           <Pressable
             key={v}
-            onPress={() => setVista(v)}
+            onPress={() => { setVista(v); guardarVistaParadas(v); }}
             style={{ flex: 1, padding: 10, backgroundColor: vista === v ? "#ddd" : "transparent" }}
           >
             <Text style={{ textAlign: "center" }}>{v === "lista" ? "Lista" : "Mapa"}</Text>
@@ -95,7 +96,7 @@ export default function Paradas() {
             <Pressable
               key={String(r)}
               disabled={!conUbicacion && r !== null}
-              onPress={() => setRadio(r)}
+              onPress={() => { setRadio(r); guardarRadioParadas(r); }}
               style={{
                 paddingVertical: 8,
                 paddingHorizontal: 12,
@@ -118,7 +119,7 @@ export default function Paradas() {
           Sin conexión. Mostramos lo guardado {haceCuanto(guardadoEn)}.
         </Text>
       )}
-      
+
       {vista === "lista" ? (
         <FlatList
           data={paradas}
