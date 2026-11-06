@@ -1,9 +1,11 @@
-// Sesión del usuario: quién está logueado y cómo se guarda el token.
-//
-// - El token vive en expo-secure-store (almacenamiento cifrado), nunca en kv-store.
-// - Si hay un token guardado al abrir la app, se pide huella o rostro antes de usarlo
-//   (expo-local-authentication). Si el dispositivo no tiene biometría, el token se descarta
-//   y la persona vuelve a ingresar con email y contraseña: esa es la alternativa.
+import { ErrorApi, configurarSesion } from "@/servicios/cliente";
+import {
+  ingresar as ingresarEnApi,
+  obtenerMiCuenta,
+  registrarse as registrarseEnApi,
+} from "@/servicios/cuenta";
+import type { Sesion } from "@/tipos/api";
+import type { Usuario } from "@/tipos/types";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 import {
@@ -15,38 +17,30 @@ import {
   type ReactNode,
 } from "react";
 
-import { ErrorApi, configurarSesion } from "@/servicios/cliente";
-import {
-  ingresar as ingresarEnApi,
-  obtenerMiCuenta,
-  registrarse as registrarseEnApi,
-} from "@/servicios/cuenta";
-import type { Sesion } from "@/tipos/api";
-import type { Usuario } from "@/tipos/types";
-
 const CLAVE_TOKEN = "token-de-sesion";
+const CLAVE_INFO_USUARIO = "info-usuario-recordado";
 
-/**
- * - iniciando: leyendo el token guardado.
- * - bloqueada: hay un token guardado y falta la huella o el rostro.
- * - sin_sesion: nadie ingresó (la app se puede usar igual: líneas, paradas y avisos son públicos).
- * - con_sesion: hay un usuario.
- */
+export interface InfoUsuarioRecordado {
+  nombre: string;
+  email: string;
+}
+
 type Estado = "iniciando" | "bloqueada" | "sin_sesion" | "con_sesion";
 
 interface ValorSesion {
   estado: Estado;
   usuario: Usuario | null;
+  usuarioRecordado: InfoUsuarioRecordado | null;
+  tieneSeguridadLocal: boolean;
   ingresar: (email: string, contrasena: string) => Promise<void>;
   registrarse: (
     nombre: string,
     email: string,
     contrasena: string,
   ) => Promise<void>;
-  /** Pide la huella y, si coincide, abre la sesión guardada. Devuelve un mensaje si falla. */
   desbloquear: () => Promise<string | null>;
+  continuarSinSesion: () => void;
   salir: () => Promise<void>;
-  /** Para cuando un cambio (por ejemplo, un favorito) devuelve el usuario actualizado. */
   reemplazarUsuario: (usuario: Usuario) => void;
 }
 
@@ -62,17 +56,24 @@ export function useSesion(): ValorSesion {
 export function SesionProvider({ children }: { children: ReactNode }) {
   const [estado, setEstado] = useState<Estado>("iniciando");
   const [usuario, setUsuario] = useState<Usuario | null>(null);
-  // El cliente HTTP lee el token de acá cada vez que hace un pedido.
+  const [usuarioRecordado, setUsuarioRecordado] =
+    useState<InfoUsuarioRecordado | null>(null);
+  const [tieneSeguridadLocal, setTieneSeguridadLocal] = useState(false);
   const tokenEnMemoria = useRef<string | null>(null);
+
+  function continuarSinSesion() {
+    setEstado("sin_sesion");
+  }
 
   async function salir() {
     tokenEnMemoria.current = null;
     setUsuario(null);
+    setUsuarioRecordado(null);
     await SecureStore.deleteItemAsync(CLAVE_TOKEN);
+    await SecureStore.deleteItemAsync(CLAVE_INFO_USUARIO);
     setEstado("sin_sesion");
   }
 
-  // Al abrir la app: ¿hay una sesión guardada?
   useEffect(() => {
     configurarSesion({ token: () => tokenEnMemoria.current, alVencer: salir });
 
@@ -82,22 +83,37 @@ export function SesionProvider({ children }: { children: ReactNode }) {
         setEstado("sin_sesion");
         return;
       }
-      const hayBiometria =
-        (await LocalAuthentication.hasHardwareAsync()) &&
-        (await LocalAuthentication.isEnrolledAsync());
-      if (hayBiometria) {
-        setEstado("bloqueada");
-      } else {
-        await salir();
+
+      const infoRaw = await SecureStore.getItemAsync(CLAVE_INFO_USUARIO);
+      if (infoRaw) {
+        try {
+          setUsuarioRecordado(JSON.parse(infoRaw));
+        } catch {}
       }
+
+      try {
+        const nivel = await LocalAuthentication.getEnrolledLevelAsync();
+        const tieneSeguridad = nivel !== LocalAuthentication.SecurityLevel.NONE;
+        setTieneSeguridadLocal(tieneSeguridad);
+      } catch {
+        setTieneSeguridadLocal(false);
+      }
+
+      setEstado("bloqueada");
     }
     revisarSesionGuardada();
   }, []);
 
   async function abrirSesion(sesion: Sesion) {
     await SecureStore.setItemAsync(CLAVE_TOKEN, sesion.token);
+    const info: InfoUsuarioRecordado = {
+      nombre: sesion.usuario.nombre,
+      email: sesion.usuario.email,
+    };
+    await SecureStore.setItemAsync(CLAVE_INFO_USUARIO, JSON.stringify(info));
     tokenEnMemoria.current = sesion.token;
     setUsuario(sesion.usuario);
+    setUsuarioRecordado(info);
     setEstado("con_sesion");
   }
 
@@ -116,11 +132,19 @@ export function SesionProvider({ children }: { children: ReactNode }) {
   }
 
   async function desbloquear(): Promise<string | null> {
-    const resultado = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Confirmá que sos vos para ingresar",
-      cancelLabel: "Cancelar",
-    });
-    if (!resultado.success) return "No pudimos verificar tu identidad.";
+    try {
+      const nivel = await LocalAuthentication.getEnrolledLevelAsync();
+      if (nivel === LocalAuthentication.SecurityLevel.NONE) {
+        return "No hay un método de seguridad configurado en este dispositivo.";
+      }
+
+      const resultado = await LocalAuthentication.authenticateAsync({
+        promptMessage: "Confirmá tu identidad para ingresar",
+      });
+      if (!resultado.success) return "No pudimos verificar tu identidad.";
+    } catch {
+      return "No se pudo iniciar la autenticación del dispositivo.";
+    }
 
     const tokenGuardado = await SecureStore.getItemAsync(CLAVE_TOKEN);
     if (!tokenGuardado) {
@@ -131,12 +155,17 @@ export function SesionProvider({ children }: { children: ReactNode }) {
     try {
       const { datos } = await obtenerMiCuenta();
       setUsuario(datos);
+      const info: InfoUsuarioRecordado = {
+        nombre: datos.nombre,
+        email: datos.email,
+      };
+      await SecureStore.setItemAsync(CLAVE_INFO_USUARIO, JSON.stringify(info));
+      setUsuarioRecordado(info);
       setEstado("con_sesion");
       return null;
     } catch (error) {
       tokenEnMemoria.current = null;
       if (error instanceof ErrorApi && error.estado === 401) {
-        // El token venció: hay que volver a ingresar con la contraseña.
         await salir();
         return null;
       }
@@ -146,20 +175,34 @@ export function SesionProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  function reemplazarUsuario(nuevo: Usuario) {
+    setUsuario(nuevo);
+    const info: InfoUsuarioRecordado = {
+      nombre: nuevo.nombre,
+      email: nuevo.email,
+    };
+    setUsuarioRecordado(info);
+    SecureStore.setItemAsync(CLAVE_INFO_USUARIO, JSON.stringify(info)).catch(
+      () => {},
+    );
+  }
+
   return (
     <ContextoSesion.Provider
       value={{
         estado,
         usuario,
+        usuarioRecordado,
+        tieneSeguridadLocal,
         ingresar,
         registrarse,
         desbloquear,
+        continuarSinSesion,
         salir,
-        reemplazarUsuario: setUsuario,
+        reemplazarUsuario,
       }}
     >
       {children}
     </ContextoSesion.Provider>
   );
 }
-
