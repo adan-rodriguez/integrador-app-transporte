@@ -1,6 +1,6 @@
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, Pressable, Text, View } from "react-native";
+import { Linking, View } from "react-native";
 
 import FlechaRumbo from "@/componentes/FlechaRumbo";
 import { useRumbo } from "@/hooks/useRumbo";
@@ -8,7 +8,13 @@ import { obtenerParada } from "@/servicios/api";
 import { Parada } from "@/tipos";
 import { formatearDistancia } from "@/utilidades/coordenadas";
 
+// ESTILO: componentes y valores del tema
+import { Boton, Cargando, Texto } from "@/componentes/ui";
+import { espacio, fuentes, useColores } from "@/tema";
+
 export default function Rumbo() {
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const [parada, setParada] = useState<Parada | null>(null);
   const { estado, hayBrujula, angulo, distancia } = useRumbo(parada?.coordenadas ?? null);
@@ -27,33 +33,42 @@ export default function Rumbo() {
     );
   }
 
-  if (!parada || estado === "cargando") return <ActivityIndicator style={{ flex: 1 }} />;
+  if (!parada || estado === "cargando") return <Cargando />;
 
   const llegaste = distancia !== null && distancia < 20;
 
   return (
-    <View style={{ flex: 1, padding: 24, alignItems: "center", justifyContent: "center", gap: 24 }}>
-      <Text style={{ fontSize: 20, fontWeight: "600", textAlign: "center" }}>{parada.nombre}</Text>
+    <View
+      style={{
+        flex: 1,
+        padding: espacio.xl,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: espacio.xl,
+        backgroundColor: c.fondo,
+      }}
+    >
+      <Texto variante="titulo" style={{ textAlign: "center" }}>{parada.nombre}</Texto>
 
       {estado !== "concedido" ? (
-        <Text style={{ textAlign: "center" }}>Necesitamos tu ubicación para guiarte hasta la parada.</Text>
+        <Texto secundario style={{ textAlign: "center" }}>Necesitamos tu ubicación para guiarte hasta la parada.</Texto>
       ) : llegaste ? (
-        <Text style={{ fontSize: 22, fontWeight: "600" }}>Ya estás en la parada</Text>
+        <Texto variante="titulo" style={{ color: c.exito }}>Ya estás en la parada</Texto>
       ) : (
         <>
           {hayBrujula ? (
-            <FlechaRumbo angulo={angulo} tamano={160} />
+            <FlechaRumbo angulo={angulo} tamano={160} color={c.acento} />
           ) : (
-            <Text>Tu teléfono no tiene brújula.</Text>
+            <Texto secundario>Tu teléfono no tiene brújula.</Texto>
           )}
-          <Text style={{ fontSize: 36, fontWeight: "700" }}>{formatearDistancia(distancia ?? 0)}m</Text>
-          <Text>Caminá hacia donde apunta la flecha</Text>
+          <Texto style={{ fontFamily: fuentes.negrita, fontSize: 40, fontVariant: ["tabular-nums"] }}>
+            {formatearDistancia(distancia ?? 0)}m
+          </Texto>
+          <Texto secundario>Caminá hacia donde apunta la flecha</Texto>
         </>
       )}
 
-      <Pressable onPress={abrirMapas} style={{ padding: 14, borderWidth: 1, borderRadius: 10, alignSelf: "stretch" }}>
-        <Text style={{ textAlign: "center" }}>Abrir en la app de mapas</Text>
-      </Pressable>
+      <Boton titulo="Abrir en la app de mapas" onPress={abrirMapas} style={{ alignSelf: "stretch" }} />
     </View>
   );
 }

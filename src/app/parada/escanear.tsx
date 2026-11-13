@@ -1,17 +1,23 @@
-import { View, Text, Pressable, Alert } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useRef } from 'react';
 import { router } from 'expo-router';
+import { useRef } from 'react';
+import { Alert, StyleSheet, View } from 'react-native';
+
+// ESTILO: componentes y valores del tema
+import { Boton, Texto } from '@/componentes/ui';
+import { espacio, radio, useColores } from '@/tema';
 
 export default function Escanear() {
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
+
   const [permiso, pedirPermiso] = useCameraPermissions();
   const yaLeyo = useRef(false);
 
   // Caso 1: todavía no sabemos si hay permiso
   if (!permiso) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <Text>Cargando cámara...</Text>
+      <View style={[styles.centro, { backgroundColor: c.fondo }]}>
+        <Texto secundario>Cargando cámara...</Texto>
       </View>
     );
   }
@@ -19,23 +25,18 @@ export default function Escanear() {
   // Caso 2: no hay permiso → explicamos y lo pedimos
   if (!permiso.granted) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 }}>
-        <Text style={{ textAlign: 'center' }}>
+      <View style={[styles.centro, { backgroundColor: c.fondo }]}>
+        <Texto style={{ textAlign: 'center' }}>
           Necesitamos la cámara para leer el código QR de la parada.
-        </Text>
-        <Pressable
-          onPress={pedirPermiso}
-          style={{ backgroundColor: '#2563eb', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 8 }}
-        >
-          <Text style={{ color: 'white', fontWeight: '600' }}>Dar permiso</Text>
-        </Pressable>
+        </Texto>
+        <Boton titulo="Dar permiso" variante="primario" onPress={pedirPermiso} />
       </View>
     );
   }
 
   // Caso 3: hay permiso → mostramos la cámara
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
       <CameraView
         style={{ flex: 1 }}
         facing="back"
@@ -62,6 +63,18 @@ export default function Escanear() {
           router.replace({ pathname: '/parada/[id]', params: {id} });
         }}
       />
+
+      {/* ESTILO: marco guía sobre la cámara (no recibe toques) */}
+      <View pointerEvents="none" style={styles.capa}>
+        <View style={[styles.marco, { borderColor: c.acento }]} />
+      </View>
     </View>
   );
 }
+
+// ESTILO: solo distribución
+const styles = StyleSheet.create({
+  centro: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: espacio.xl, gap: espacio.l },
+    capa: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  marco: { width: 240, height: 240, borderWidth: 4, borderRadius: radio.l },
+});

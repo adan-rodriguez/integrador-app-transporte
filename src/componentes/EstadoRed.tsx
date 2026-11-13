@@ -1,12 +1,18 @@
 import { useNetworkState } from "expo-network";
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { cantidadPendientes, sincronizarCola } from "@/servicios/colaReportes";
 import { useSesion } from "@/sesion";
 
+// ESTILO: componentes y valores del tema
+import { Texto } from "@/componentes/ui";
+import { useColores } from "@/tema";
+
 export default function EstadoRed() {
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
+
   const red = useNetworkState(); // expo-network: se actualiza solo cuando cambia la conexión
   const { estado } = useSesion();
   const insets = useSafeAreaInsets();
@@ -33,11 +39,11 @@ export default function EstadoRed() {
   if (!sinRed && pendientes === 0) return null;
 
   return (
-    <View style={{ backgroundColor: "#5c4400", paddingTop: insets.top, paddingBottom: 6, paddingHorizontal: 16 }}>
-      <Text style={{ color: "#fff", textAlign: "center", fontSize: 13 }}>
+    <View style={{ backgroundColor: c.desvioFondo, paddingTop: insets.top, paddingBottom: 6, paddingHorizontal: 16 }}>
+      <Texto variante="secundario" style={{ color: c.desvio, textAlign: "center" }}>
         {sinRed ? "Sin conexión. Mostramos la información guardada." : "Enviando reportes pendientes…"}
         {pendientes > 0 ? ` · ${pendientes} ${pendientes === 1 ? "reporte" : "reportes"} por enviar` : ""}
-      </Text>
+      </Texto>
     </View>
   );
 }
