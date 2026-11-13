@@ -1,12 +1,16 @@
 import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import MapaRecorrido from '@/componentes/MapaRecorrido';
 import { obtenerAvisos, obtenerFeriados, obtenerHorariosLinea, obtenerLinea, obtenerParadas } from '@/servicios/api';
 import { Aviso, Horario, Linea, Parada, Sentido, TipoDeDia } from '@/tipos';
 import { haceCuanto } from '@/utilidades/fechas';
 import { tipoDeDia } from '@/utilidades/horarios';
+
+// ESTILO: componentes y valores del tema
+import { BannerSinRed, Cargando, Selector, Texto } from '@/componentes/ui';
+import { espacio, radio, textoSobre, useColores } from '@/tema';
 
 
 // Opciones del selector de tipo de día: [valor, texto]
@@ -18,6 +22,8 @@ const TIPOS: [TipoDeDia, string][] = [
 ];
 
 export default function LineaDetailScreen() {
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const [linea, setLinea] = useState<Linea | null>(null);
   const [paradas, setParadas] = useState<Map<string, Parada>>(new Map());
@@ -52,11 +58,11 @@ export default function LineaDetailScreen() {
     });
   }, [id]);
 
-  if (cargando) return <ActivityIndicator style={{ flex: 1 }} />;
+  if (cargando) return <Cargando />;
   if (!linea) {
     return (
-      <View style={styles.center}>
-        <Text>{error ?? 'No encontramos esta línea.'}</Text>
+      <View style={[styles.center, { backgroundColor: c.fondo }]}>
+        <Texto>{error ?? 'No encontramos esta línea.'}</Texto>
       </View>
     );
   }
@@ -73,82 +79,90 @@ export default function LineaDetailScreen() {
     .map((h) => h.hora)
     .sort();
 
+  // ESTILO: colores de cada aviso según su gravedad
+  function coloresAviso(a: Aviso) {
+    if (a.gravedad === 'suspension') return { color: c.suspension, fondo: c.suspensionFondo };
+    if (a.gravedad === 'desvio') return { color: c.desvio, fondo: c.desvioFondo };
+    return { color: c.informativo, fondo: c.informativoFondo };
+  }
+
   return (
     <>
       <Stack.Screen options={{ title: `Línea ${linea.numero}` }} />
       <FlatList
         data={paradasDelRecorrido}
         keyExtractor={(p) => p.id}
-        contentContainerStyle={{ padding: 16, gap: 4 }}
+        style={{ backgroundColor: c.fondo }}
+        contentContainerStyle={{ padding: espacio.l, gap: 0 }}
         ListHeaderComponent={
-          <View style={{ gap: 12, marginBottom: 8 }}>
-            <View>
-              <Text style={[styles.title, { color: linea.color }]}>Línea {linea.numero}</Text>
-              <Text>{linea.nombre} · {linea.empresa}</Text>
-              {!linea.activa && <Text style={styles.sinServicio}>Hoy sin servicio</Text>}
+          <View style={{ gap: espacio.m, marginBottom: espacio.s }}>
+            <View style={{ gap: espacio.xs }}>
+              <View style={[styles.titulo, { backgroundColor: linea.color }]}>
+                <Texto variante="titulo" style={{ color: textoSobre(linea.color) }}>Línea {linea.numero}</Texto>
+              </View>
+              <Texto secundario>{linea.nombre} · {linea.empresa}</Texto>
+              {!linea.activa && (
+                <Texto variante="cuerpoNegrita" style={{ color: c.suspension }}>Hoy sin servicio</Texto>
+              )}
             </View>
 
             {guardadoEn && (
-              <Text style={styles.avisoSinRed}>Sin conexión. Recorrido guardado {haceCuanto(guardadoEn)}.</Text>
+              <BannerSinRed mensaje={`Sin conexión. Recorrido guardado ${haceCuanto(guardadoEn)}.`} />
             )}
 
-            {avisos.map((a) => (
-              <Link key={a.id} href={`/aviso/${a.id}`} asChild>
-                <Pressable style={styles.aviso}>
-                  <Text style={{ fontWeight: '700', color: '#b35c00' }}>
-                    {a.gravedad === 'suspension' ? 'SUSPENSIÓN' : a.gravedad === 'desvio' ? 'DESVÍO' : 'AVISO'}
-                  </Text>
-                  <Text>{a.titulo}</Text>
-                  <Text style={{ fontSize: 12 }}>Tocá para ver el detalle</Text>
-                </Pressable>
-              </Link>
-            ))}
+            {avisos.map((a) => {
+              const col = coloresAviso(a);
+              return (
+                <Link key={a.id} href={`/aviso/${a.id}`} asChild>
+                  <Pressable style={StyleSheet.flatten([styles.aviso, { backgroundColor: col.fondo }])}>
+                    <Texto variante="etiqueta" style={{ color: col.color }}>
+                      {a.gravedad === 'suspension' ? 'SUSPENSIÓN' : a.gravedad === 'desvio' ? 'DESVÍO' : 'AVISO'}
+                    </Texto>
+                    <Texto variante="cuerpoNegrita" style={{ color: col.color }}>{a.titulo}</Texto>
+                    <Texto variante="secundario" style={{ color: col.color }}>Tocá para ver el detalle</Texto>
+                  </Pressable>
+                </Link>
+              );
+            })}
 
-            <View style={styles.selector}>
-              {linea.recorridos.map((r) => (
-                <Pressable
-                  key={r.sentido}
-                  onPress={() => setSentido(r.sentido)}
-                  style={[styles.opcion, sentido === r.sentido && { backgroundColor: '#ddd' }]}
-                >
-                  <Text style={{ fontWeight: '600', textAlign: 'center' }}>{r.sentido === 'ida' ? 'Ida' : 'Vuelta'}</Text>
-                  <Text style={{ fontSize: 12, textAlign: 'center' }}>{r.destino}</Text>
-                </Pressable>
-              ))}
-            </View>
+            <Selector
+              opciones={linea.recorridos.map((r) => ({
+                valor: r.sentido,
+                texto: r.sentido === 'ida' ? 'Ida' : 'Vuelta',
+                detalle: r.destino,
+              }))}
+              valor={sentido}
+              onCambiar={setSentido}
+            />
 
-            <View style={styles.mapa}>
+            <View style={[styles.mapa, { borderColor: c.borde }]}>
               {recorrido && (
                 <MapaRecorrido trazado={recorrido.trazado} paradas={paradasDelRecorrido} color={linea.color} />
               )}
             </View>
 
-            <Text style={styles.subtitle}>Paradas {recorrido?.destino}</Text>
+            <Texto variante="subtitulo">Paradas {recorrido?.destino}</Texto>
           </View>
         }
-        ListEmptyComponent={<Text>No pudimos cargar las paradas de este recorrido.</Text>}
+        ListEmptyComponent={<Texto secundario>No pudimos cargar las paradas de este recorrido.</Texto>}
         ListFooterComponent={
-          <View style={{ gap: 8, marginTop: 16 }}>
-            <Text style={styles.subtitle}>
+          <View style={{ gap: espacio.m, marginTop: espacio.l }}>
+            <Texto variante="subtitulo">
               Horarios desde {cabecera ? paradas.get(cabecera)?.nombre : 'la cabecera'}
-            </Text>
-            <View style={styles.selector}>
-              {TIPOS.map(([valor, texto]) => (
-                <Pressable
-                  key={valor}
-                  onPress={() => setTipo(valor)}
-                  style={[styles.opcion, tipo === valor && { backgroundColor: '#ddd' }]}
-                >
-                  <Text style={{ textAlign: 'center', fontSize: 13 }}>{texto}</Text>
-                </Pressable>
-              ))}
-            </View>
+            </Texto>
+            <Selector
+              opciones={TIPOS.map(([valor, texto]) => ({ valor, texto }))}
+              valor={tipo}
+              onCambiar={setTipo}
+            />
             {salidas.length === 0 ? (
-              <Text>No hay servicio ese día.</Text>
+              <Texto secundario>No hay servicio ese día.</Texto>
             ) : (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+              <View style={styles.salidas}>
                 {salidas.map((h) => (
-                  <Text key={h}>{h}</Text>
+                  <View key={h} style={[styles.salida, { backgroundColor: c.tarjeta, borderColor: c.borde }]}>
+                    <Texto style={{ fontVariant: ['tabular-nums'] }}>{h}</Texto>
+                  </View>
                 ))}
               </View>
             )}
@@ -156,9 +170,11 @@ export default function LineaDetailScreen() {
         }
         renderItem={({ item, index }) => (
           <Link href={`/parada/${item.id}`} asChild>
-            <Pressable style={styles.parada}>
-              <Text style={styles.numero}>{index + 1}</Text>
-              <Text style={{ flex: 1 }}>{item.nombre}</Text>
+            <Pressable style={StyleSheet.flatten([styles.parada, { borderBottomColor: c.borde }])}>
+              <View style={[styles.numero, { borderColor: linea.color }]}>
+                <Texto variante="etiqueta">{index + 1}</Texto>
+              </View>
+              <Texto style={{ flex: 1 }}>{item.nombre}</Texto>
             </Pressable>
           </Link>
         )}
@@ -167,16 +183,14 @@ export default function LineaDetailScreen() {
   );
 }
 
+// ESTILO: solo distribución; los colores salen de useColores() o del color de la línea
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  title: { fontSize: 24, fontWeight: 'bold' },
-  subtitle: { fontSize: 18, fontWeight: '600' },
-  sinServicio: { color: '#b00020', fontWeight: '600', marginTop: 4 },
-  avisoSinRed: { padding: 8, borderRadius: 8, backgroundColor: '#fff3cd', color: '#5c4400' },
-  selector: { flexDirection: 'row', borderWidth: 1, borderRadius: 10, overflow: 'hidden' },
-  opcion: { flex: 1, padding: 10 },
-  mapa: { height: 260, borderRadius: 10, overflow: 'hidden' },
-  parada: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#ddd' },
-  numero: { width: 24, textAlign: 'center', fontWeight: '600' },
-  aviso: { padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#b35c00', backgroundColor: '#fff4e5', gap: 2 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: espacio.xl },
+  titulo: { alignSelf: 'flex-start', borderRadius: radio.s, paddingHorizontal: espacio.m, paddingVertical: espacio.xs },
+  mapa: { height: 260, borderRadius: radio.m, overflow: 'hidden', borderWidth: 1 },
+  parada: { flexDirection: 'row', alignItems: 'center', gap: espacio.m, paddingVertical: espacio.m, borderBottomWidth: 1 },
+  numero: { width: 28, height: 28, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  aviso: { padding: espacio.m, borderRadius: radio.m, gap: 2 },
+  salidas: { flexDirection: 'row', flexWrap: 'wrap', gap: espacio.s },
+  salida: { borderWidth: 1, borderRadius: radio.s, paddingHorizontal: espacio.s, paddingVertical: espacio.xs },
 });
