@@ -2,13 +2,17 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { enviarReporte, nuevoIdReporte, subirFoto } from '@/servicios/api';
 import { ErrorApi } from '@/servicios/cliente';
+import { guardarEnCola } from '@/servicios/colaReportes';
 import { useSesion } from '@/sesion';
 import { MotivoDemora } from '@/tipos';
-import { guardarEnCola } from '@/servicios/colaReportes';
+
+// ESTILO: componentes y valores del tema
+import { Boton, Texto } from '@/componentes/ui';
+import { espacio, fuentes, radio, useColores } from '@/tema';
 
 const MOTIVOS: [MotivoDemora, string][] = [
   ['no_paso', 'No pasó'],
@@ -19,6 +23,8 @@ const MOTIVOS: [MotivoDemora, string][] = [
 ];
 
 export default function ReportarDemoraScreen() {
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
+
   const { id_linea, id_parada } = useLocalSearchParams<{ id_linea: string; id_parada: string }>();
   const { usuario } = useSesion();
   const [motivo, setMotivo] = useState<MotivoDemora | null>(null);
@@ -29,11 +35,9 @@ export default function ReportarDemoraScreen() {
   // Reportar necesita sesión: la API saca el usuario del token
   if (!usuario) {
     return (
-      <View style={styles.center}>
-        <Text style={{ textAlign: 'center' }}>Para reportar una demora tenés que ingresar con tu cuenta.</Text>
-        <Pressable style={styles.boton} onPress={() => router.push('/ingresar')}>
-          <Text>Ingresar</Text>
-        </Pressable>
+      <View style={[styles.center, { backgroundColor: c.fondo }]}>
+        <Texto style={{ textAlign: 'center' }}>Para reportar una demora tenés que ingresar con tu cuenta.</Texto>
+        <Boton titulo="Ingresar" variante="primario" onPress={() => router.push('/ingresar')} />
       </View>
     );
   }
@@ -86,72 +90,85 @@ export default function ReportarDemoraScreen() {
     }
   }
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 16 }}>
-      <View style={{ gap: 8 }}>
-        <Text style={styles.subtitulo}>¿Qué pasó?</Text>
-        {MOTIVOS.map(([valor, texto]) => (
-          <Pressable
-            key={valor}
-            onPress={() => setMotivo(valor)}
-            style={[styles.opcion, motivo === valor && styles.opcionElegida]}
-          >
-            <Text>{texto}</Text>
-          </Pressable>
-        ))}
+    <ScrollView
+      style={{ backgroundColor: c.fondo }}
+      contentContainerStyle={{ padding: espacio.l, gap: espacio.l, paddingBottom: espacio.xl * 2 }}
+    >
+      <View style={{ gap: espacio.s }}>
+        <Texto variante="subtitulo">¿Qué pasó?</Texto>
+        {MOTIVOS.map(([valor, texto]) => {
+          const elegido = motivo === valor;
+          return (
+            <Pressable
+              key={valor}
+              onPress={() => setMotivo(valor)}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: elegido }}
+              style={[
+                styles.opcion,
+                elegido
+                  ? { borderColor: c.acento, borderWidth: 2, backgroundColor: c.acentoSuave }
+                  : { borderColor: c.borde, borderWidth: 1, backgroundColor: c.tarjeta },
+              ]}
+            >
+              {/* ESTILO: círculo de opción (relleno si está elegida) */}
+              <View style={[styles.circulo, { borderColor: elegido ? c.acento : c.textoSecundario }]}>
+                {elegido && <View style={[styles.punto, { backgroundColor: c.acento }]} />}
+              </View>
+              <Texto variante={elegido ? 'cuerpoNegrita' : 'cuerpo'}>{texto}</Texto>
+            </Pressable>
+          );
+        })}
       </View>
 
-      <View style={{ gap: 6 }}>
-        <Text style={styles.subtitulo}>Comentario (opcional)</Text>
+      <View style={{ gap: espacio.s }}>
+        <Texto variante="subtitulo">Comentario (opcional)</Texto>
         <TextInput
-          style={styles.input}
+          style={[
+            styles.input,
+            { backgroundColor: c.tarjeta, borderColor: c.borde, color: c.texto, fontFamily: fuentes.regular },
+          ]}
           multiline
           maxLength={500}
           value={comentario}
           onChangeText={setComentario}
           placeholder="Ej.: hace 20 minutos que no pasa"
+          placeholderTextColor={c.textoSecundario}
         />
       </View>
 
-      <View style={{ gap: 8 }}>
-        <Text style={styles.subtitulo}>Foto (opcional)</Text>
+      <View style={{ gap: espacio.s }}>
+        <Texto variante="subtitulo">Foto (opcional)</Texto>
         {foto ? (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Image source={{ uri: foto }} style={{ width: 80, height: 80, borderRadius: 8 }} />
-            <Pressable style={styles.boton} onPress={() => setFoto(null)}>
-              <Text>Quitar foto</Text>
-            </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: espacio.m }}>
+            <Image source={{ uri: foto }} style={[styles.miniatura, { borderColor: c.borde }]} />
+            <Boton titulo="Quitar foto" variante="peligro" onPress={() => setFoto(null)} />
           </View>
         ) : (
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            <Pressable style={[styles.boton, { flex: 1 }]} onPress={sacarFoto}>
-              <Text style={{ textAlign: 'center' }}>Sacar foto</Text>
-            </Pressable>
-            <Pressable style={[styles.boton, { flex: 1 }]} onPress={elegirDeGaleria}>
-              <Text style={{ textAlign: 'center' }}>Galería</Text>
-            </Pressable>
+          <View style={{ flexDirection: 'row', gap: espacio.m }}>
+            <Boton titulo="Sacar foto" onPress={sacarFoto} style={{ flex: 1 }} />
+            <Boton titulo="Galería" onPress={elegirDeGaleria} style={{ flex: 1 }} />
           </View>
         )}
       </View>
 
-      <Pressable
-        style={[styles.enviar, (!motivo || enviando) && { opacity: 0.5 }]}
+      <Boton
+        titulo={enviando ? 'Enviando…' : 'Enviar reporte'}
+        variante="primario"
         disabled={!motivo || enviando}
         onPress={enviar}
-      >
-        <Text style={{ color: '#fff', fontWeight: '600', textAlign: 'center' }}>
-          {enviando ? 'Enviando…' : 'Enviar reporte'}
-        </Text>
-      </Pressable>
+        style={(!motivo || enviando) ? { opacity: 0.5 } : undefined}
+      />
     </ScrollView>
   );
 }
 
+// ESTILO: solo distribución; los colores salen de useColores()
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 },
-  subtitulo: { fontSize: 17, fontWeight: '600' },
-  opcion: { padding: 12, borderWidth: 1, borderColor: '#bbb', borderRadius: 10 },
-  opcionElegida: { borderColor: '#333', borderWidth: 2, backgroundColor: '#eee' },
-  input: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 8, minHeight: 80, textAlignVertical: 'top' },
-  boton: { padding: 12, borderWidth: 1, borderRadius: 8, alignItems: 'center' },
-  enviar: { padding: 14, borderRadius: 10, backgroundColor: '#e67e00' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: espacio.xl, gap: espacio.m },
+  opcion: { flexDirection: 'row', alignItems: 'center', gap: espacio.m, padding: espacio.m, borderRadius: radio.m },
+  circulo: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  punto: { width: 10, height: 10, borderRadius: 5 },
+  input: { borderWidth: 1, padding: espacio.m, borderRadius: radio.m, minHeight: 90, textAlignVertical: 'top', fontSize: 16 },
+  miniatura: { width: 80, height: 80, borderRadius: radio.m, borderWidth: 1 },
 });
