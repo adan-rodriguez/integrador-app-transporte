@@ -1,12 +1,18 @@
 import { Link } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { obtenerAvisos, obtenerLineas } from '@/servicios/api';
 import { Gravedad, Linea } from '@/tipos';
 import { haceCuanto } from '@/utilidades/fechas';
 
+// ESTILO: componentes y valores del tema
+import { BannerSinRed, Boton, Cargando, Texto } from '@/componentes/ui';
+import { espacio, radio, useColores } from '@/tema';
+
 export default function LineasScreen() {
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
+
   const [lineas, setLineas] = useState<Linea[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -37,45 +43,58 @@ export default function LineasScreen() {
 
   useEffect(cargar, []);
 
-  if (cargando && lineas.length === 0) return <ActivityIndicator style={{ flex: 1 }} />;
+  if (cargando && lineas.length === 0) return <Cargando />;
 
   if (error && lineas.length === 0) {
     return (
-      <View style={styles.center}>
-        <Text style={{ textAlign: 'center' }}>{error}</Text>
-        <Pressable onPress={cargar} style={styles.boton}>
-          <Text>Reintentar</Text>
-        </Pressable>
+      <View style={[styles.center, { backgroundColor: c.fondo }]}>
+        <Texto style={{ textAlign: 'center' }}>{error}</Texto>
+        <Boton titulo="Reintentar" onPress={cargar} />
+      </View>
+    );
+  }
+
+  // ESTILO: etiqueta de estado (fondo suave + texto del mismo tono)
+  function Etiqueta({ texto, color, fondo }: { texto: string; color: string; fondo: string }) {
+    return (
+      <View style={[styles.etiqueta, { backgroundColor: fondo }]}>
+        <Texto variante="etiqueta" style={{ color }}>{texto}</Texto>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: c.fondo }]}>
       {guardadoEn && (
-        <Text style={styles.avisoSinRed}>Sin conexión. Mostramos lo guardado {haceCuanto(guardadoEn)}.</Text>
+        <BannerSinRed mensaje={`Sin conexión. Mostramos lo guardado ${haceCuanto(guardadoEn)}.`} />
       )}
       <FlatList
         data={lineas}
         keyExtractor={(item) => item.id}
         refreshing={cargando}
         onRefresh={cargar}
-        ListEmptyComponent={<Text>No hay líneas cargadas.</Text>}
+        contentContainerStyle={{ gap: espacio.s, paddingBottom: espacio.l }}
+        ListEmptyComponent={<Texto secundario>No hay líneas cargadas.</Texto>}
         renderItem={({ item }) => (
           <Link href={`/linea/${item.id}`} asChild>
-            <Pressable style={StyleSheet.flatten([styles.item, { borderLeftColor: item.color }])}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={styles.itemTitle}>Línea {item.numero}</Text>
+            <Pressable
+              style={StyleSheet.flatten([
+                styles.item,
+                { borderLeftColor: item.color, backgroundColor: c.tarjeta, borderColor: c.borde },
+              ])}
+            >
+              <View style={styles.fila}>
+                <Texto variante="subtitulo">Línea {item.numero}</Texto>
                 {!item.activa ? (
-                  <Text style={styles.sinServicio}>Sin servicio</Text>
+                  <Etiqueta texto="Sin servicio" color={c.suspension} fondo={c.suspensionFondo} />
                 ) : estados.get(item.id) === 'suspension' ? (
-                  <Text style={styles.sinServicio}>Suspendida</Text>
+                  <Etiqueta texto="Suspendida" color={c.suspension} fondo={c.suspensionFondo} />
                 ) : estados.get(item.id) === 'desvio' ? (
-                  <Text style={styles.desvio}>Desvío</Text>
+                  <Etiqueta texto="Desvío" color={c.desvio} fondo={c.desvioFondo} />
                 ) : null}
               </View>
-              <Text>{item.nombre}</Text>
-              <Text style={{ fontSize: 12 }}>{item.empresa}</Text>
+              <Texto>{item.nombre}</Texto>
+              <Texto variante="secundario" secundario>{item.empresa}</Texto>
             </Pressable>
           </Link>
         )}
@@ -84,13 +103,11 @@ export default function LineasScreen() {
   );
 }
 
+// ESTILO: solo distribución; los colores salen de useColores()
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, gap: 8 },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 12 },
-  boton: { padding: 12, borderWidth: 1, borderRadius: 8 },
-  item: { padding: 16, borderLeftWidth: 8, backgroundColor: '#f9f9f9', marginBottom: 8, borderRadius: 4, gap: 2 },
-  itemTitle: { fontSize: 18, fontWeight: 'bold' },
-  sinServicio: { fontSize: 12, color: '#b00020', fontWeight: '600' },
-  avisoSinRed: { padding: 8, borderRadius: 8, backgroundColor: '#fff3cd', color: '#5c4400' },
-    desvio: { fontSize: 12, color: '#b35c00', fontWeight: '600' },
+  container: { flex: 1, padding: espacio.l, gap: espacio.s },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: espacio.xl, gap: espacio.m },
+  item: { padding: espacio.l, borderWidth: 1, borderLeftWidth: 8, borderRadius: radio.m, gap: 2 },
+  fila: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  etiqueta: { borderRadius: radio.s, paddingHorizontal: espacio.s, paddingVertical: 2 },
 });
