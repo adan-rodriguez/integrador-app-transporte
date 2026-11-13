@@ -1,18 +1,22 @@
+import FlechaRumbo from '@/componentes/FlechaRumbo';
+import { useRumbo } from '@/hooks/useRumbo';
 import { confirmarReporte, obtenerHorariosParada, obtenerLineasDeParada, obtenerParada, obtenerReportesParada } from '@/servicios/api';
 import { Horario, Linea, MotivoDemora, Parada, ReporteDeDemora } from '@/tipos';
-import { agruparPorLinea } from '@/utilidades/horarios';
-import { Link, useLocalSearchParams, router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Alert, Button, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRumbo } from '@/hooks/useRumbo';
-import FlechaRumbo from '@/componentes/FlechaRumbo';
 import { formatearDistancia } from '@/utilidades/coordenadas';
 import { haceCuanto } from '@/utilidades/fechas';
+import { agruparPorLinea } from '@/utilidades/horarios';
+import { Link, router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+
+// ESTILO: componentes y valores del tema
+import { BannerSinRed, Boton, Tarjeta, Texto } from '@/componentes/ui';
+import { espacio, radio, useColores } from '@/tema';
 
 //FAVORITO============================================================================================================
-import Ionicons from '@react-native-vector-icons/ionicons';
 import { agregarParadaFavorita, quitarParadaFavorita } from '@/servicios/cuenta';
 import { useSesion } from '@/sesion';
+import Ionicons from '@react-native-vector-icons/ionicons';
 //=======================================================================================================================
 
 //NOTIFICACIO ALERTA============================================================================================================
@@ -29,7 +33,7 @@ const MOTIVO_TEXTO: Record<MotivoDemora, string> = {
 };
 
 export default function ParadaDetailScreen() {
-  // TODO: usar useColores() de @/tema en vez de colores fijos (en modo oscuro se ve mal)
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
 
   const { id } = useLocalSearchParams();
   const [parada, setParada] = useState<Parada | null>(null);
@@ -105,8 +109,8 @@ export default function ParadaDetailScreen() {
     });
   }, [id]);
 
-  if (loading) return <View style={styles.center}><Text>Cargando información de la parada...</Text></View>;
-  if (!parada) return <View style={styles.center}><Text>Error: Parada no encontrada.</Text></View>;
+  if (loading) return <View style={[styles.center, { backgroundColor: c.fondo }]}><Texto secundario>Cargando información de la parada...</Texto></View>;
+  if (!parada) return <View style={[styles.center, { backgroundColor: c.fondo }]}><Texto>Error: Parada no encontrada.</Texto></View>;
 
   function nombreLinea(lineaId: string) {
     const l = lineas.find((x) => x.id === lineaId);
@@ -115,6 +119,11 @@ export default function ParadaDetailScreen() {
       l.recorridos.find((r) => r.paradaIds.includes(parada!.id)) ??
       l.recorridos.find((r) => r.sentido === parada!.sentido);
     return `Línea ${l.numero}${recorrido ? ' ' + recorrido.destino : ''}`;
+  }
+
+  // ESTILO: color de la línea para la franja de su tarjeta (gris si todavía no cargó)
+  function colorLinea(lineaId: string) {
+    return lineas.find((x) => x.id === lineaId)?.color ?? c.borde;
   }
 
   function pedirRecordatorio(hora: string, lineaId: string) {
@@ -133,66 +142,75 @@ export default function ParadaDetailScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: c.fondo }]}>
       <View style={styles.encabezado}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{parada.nombre}</Text>
-          <Text>
+          <Texto variante="titulo">{parada.nombre}</Texto>
+          <Texto variante="secundario" secundario>
             Líneas que pasan: {parada.lineaIds.map((id) => lineas.find((l) => l.id === id)?.numero ?? id).join(', ')}
-          </Text>
+          </Texto>
         </View>
         <Pressable
           onPress={alternarFavorita}
           style={{ padding: 8 }}
           accessibilityLabel={esFavorita ? 'Quitar de favoritas' : 'Agregar a favoritas'}
         >
-          <Ionicons name={esFavorita ? 'star' : 'star-outline'} size={28} color="#f5a623" />
+          <Ionicons name={esFavorita ? 'star' : 'star-outline'} size={28} color={c.acento} />
         </Pressable>
         <Link href={`/parada/${parada.id}/rumbo`} asChild>
-          <Pressable style={styles.rumbo} accessibilityLabel="Cómo llego a la parada">
-            <FlechaRumbo angulo={angulo} />
-            <Text style={{ fontSize: 12 }}>
+          <Pressable
+                        style={StyleSheet.flatten([styles.rumbo, { borderColor: c.borde, backgroundColor: c.tarjeta }])}
+            accessibilityLabel="Cómo llego a la parada"
+          >
+            <FlechaRumbo angulo={angulo} color={c.acento} />
+            <Texto variante="etiqueta" secundario>
               {distancia !== null ? formatearDistancia(distancia) : '...'}
-            </Text>
+            </Texto>
           </Pressable>
         </Link>
       </View>
 
       {guardadoEn && (
-        <Text style={styles.avisoSinRed}>
-          Sin conexión. Horarios calculados con la tabla guardada {haceCuanto(guardadoEn)}.
-        </Text>
+        <View style={{ marginTop: espacio.s }}>
+          <BannerSinRed mensaje={`Sin conexión. Horarios calculados con la tabla guardada ${haceCuanto(guardadoEn)}.`} />
+        </View>
       )}
 
-      <Text style={styles.subtitle}>Próximos horarios (según tabla)</Text>
-      <Text style={{ fontSize: 12, marginBottom: 4 }}>Tocá un horario para que te avisemos 10 min antes.</Text>
+      <Texto variante="subtitulo" style={styles.subtitle}>Próximos horarios (según tabla)</Texto>
+      <Texto variante="secundario" secundario style={{ marginBottom: espacio.s }}>
+        Tocá un horario para que te avisemos 10 min antes.
+      </Texto>
       <FlatList
         data={agruparPorLinea(horarios)}
         keyExtractor={(g) => g.lineaId}
+        contentContainerStyle={{ gap: espacio.s }}
         renderItem={({ item: g }) => (
-          <View style={styles.grupo}>
-            <Text style={styles.linea}>{nombreLinea(g.lineaId)}</Text>
+          <Tarjeta style={[styles.grupo, { borderLeftColor: colorLinea(g.lineaId) }]}>
+            <Texto variante="cuerpoNegrita">{nombreLinea(g.lineaId)}</Texto>
             {g.primeroEsManana ? (
-              <Text>No hay más servicio hasta mañana a las {g.horarios[0].hora}</Text>
+              <Texto secundario>No hay más servicio hasta mañana a las {g.horarios[0].hora}</Texto>
             ) : (
               <>
                 <Pressable onPress={() => pedirRecordatorio(g.horarios[0].hora, g.lineaId)}>
-                  <Text style={styles.horaTexto}>
-                    {g.horarios[0].hora} (en {g.minutosAlPrimero} min según tabla)
-                  </Text>
+                  <Texto variante="horario">
+                    {g.horarios[0].hora}
+                    <Texto variante="secundario" secundario>
+                      {' '}(en {g.minutosAlPrimero} min según tabla)
+                    </Texto>
+                  </Texto>
                 </Pressable>
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                   {g.horarios.slice(1).map((h) => (
                     <Pressable key={h.id} onPress={() => pedirRecordatorio(h.hora, g.lineaId)} hitSlop={8}>
-                      <Text>{h.hora}</Text>
+                      <Texto secundario style={{ fontVariant: ['tabular-nums'] }}>{h.hora}</Texto>
                     </Pressable>
                   ))}
                 </View>
               </>
             )}
-          </View>
+          </Tarjeta>
         )}
-        ListEmptyComponent={<Text>No hay servicio hoy ni mañana en esta parada.</Text>}
+        ListEmptyComponent={<Texto secundario>No hay servicio hoy ni mañana en esta parada.</Texto>}
       />
 
       {/* TODO (Noelia): elegir la línea a reportar entre las que pasan por la parada, no lin-05 fija */}
@@ -200,34 +218,35 @@ export default function ParadaDetailScreen() {
         
         {reportes.length > 0 && (
           <View style={{ gap: 6, marginTop: 12 }}>
-            <Text style={styles.subtitle}>Reportes de pasajeros</Text>
+            <Texto variante="subtitulo" style={styles.subtitle}>Reportes de pasajeros</Texto>
             {reportes.map((r) => (
-              <View key={r.id} style={styles.reporte}>
-                <Text style={{ fontWeight: '600' }}>
+              <View key={r.id} style={[styles.reporte, { backgroundColor: c.acentoSuave }]}>
+                <Texto variante="cuerpoNegrita" style={{ color: c.acento }}>
                   {nombreLinea(r.lineaId)}: {MOTIVO_TEXTO[r.motivo]}
-                </Text>
-                <Text style={{ fontSize: 12 }}>
+                </Texto>
+                <Texto variante="secundario" style={{ color: c.acento }}>
                   {haceCuanto(new Date(r.fechaHora))} · {r.confirmaciones} confirmaron
-                </Text>
-                {r.comentario && <Text>{r.comentario}</Text>}
+                </Texto>
+                {r.comentario && <Texto>{r.comentario}</Texto>}
                 {r.usuarioId !== usuario?.id && (
-                  <Pressable onPress={() => confirmar(r.id)} style={styles.botonConfirmar}>
-                    <Text>Yo también lo veo</Text>
-                  </Pressable>
+                  <Boton
+                    titulo="Yo también lo veo"
+                    onPress={() => confirmar(r.id)}
+                    style={styles.botonConfirmar}
+                  />
                 )}
               </View>
             ))}
           </View>
         )}
-        <Text style={styles.subtitle}>¿Tu colectivo está demorado?</Text>
+        <Texto variante="subtitulo" style={styles.subtitle}>¿Tu colectivo está demorado?</Texto>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {parada.lineaIds.map((lid) => (
             <Link key={lid} href={`/reporte/${lid}/${parada.id}`} asChild>
-              <Pressable style={styles.chipReporte}>
-                <Text style={{ fontWeight: '600' }}>
-                  Reportar línea {lineas.find((l) => l.id === lid)?.numero ?? lid}
-                </Text>
-              </Pressable>
+              <Boton
+                titulo={`Reportar línea ${lineas.find((l) => l.id === lid)?.numero ?? lid}`}
+                variante="primario"
+              />
             </Link>
           ))}
         </View>
@@ -236,18 +255,15 @@ export default function ParadaDetailScreen() {
   );
 }
 
+// ESTILO: acá solo queda la distribución (márgenes, tamaños, bordes).
+// Los colores van aparte, desde useColores(), para que cambien con el modo oscuro.
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
+  container: { flex: 1, padding: espacio.l },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 24, fontWeight: 'bold' },
-  subtitle: { fontSize: 18, marginTop: 16, marginBottom: 8, fontWeight: '600' },
-  horaTexto: { fontSize: 18, fontWeight: 'bold' },
-  grupo: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#ccc', gap: 2 },
-  linea: { fontSize: 16, fontWeight: '600' },
-  encabezado: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  rumbo: { alignItems: 'center', padding: 8, borderWidth: 1, borderColor: '#ccc', borderRadius: 10, minWidth: 64 },
-  avisoSinRed: { padding: 8, borderRadius: 8, backgroundColor: '#fff3cd', color: '#5c4400', marginTop: 8 },
-  chipReporte: { paddingVertical: 10, paddingHorizontal: 14, borderRadius: 10, backgroundColor: '#ffe0b2' },
-    reporte: { padding: 10, borderRadius: 8, backgroundColor: '#fff4e5', gap: 2 },
-  botonConfirmar: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6, paddingHorizontal: 10, borderWidth: 1, borderRadius: 8 },
+  subtitle: { marginTop: espacio.l, marginBottom: espacio.xs },
+  grupo: { borderLeftWidth: 6, gap: 2 },
+  encabezado: { flexDirection: 'row', alignItems: 'center', gap: espacio.m },
+  rumbo: { alignItems: 'center', padding: espacio.s, borderWidth: 1, borderRadius: radio.m, minWidth: 64 },
+  reporte: { padding: espacio.m, borderRadius: radio.m, gap: 2 },
+  botonConfirmar: { alignSelf: 'flex-start', marginTop: 4, paddingVertical: 6, paddingHorizontal: 10 },
 });
