@@ -1,15 +1,21 @@
-import { View, Text, StyleSheet, Button, Pressable } from 'react-native';
-import { Link, router } from 'expo-router';
-import { useEffect, useState } from 'react';
 import MapaParadas from '@/componentes/MapaParadas';
 import { useUbicacion } from '@/hooks/useUbicacion';
 import { obtenerParadasCercanas } from '@/servicios/api';
 import { Parada } from '@/tipos';
+import { Link, router } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+
+// ESTILO: componentes y valores del tema
+import { Boton, Texto } from '@/componentes/ui';
+import { espacio, radio, useColores } from '@/tema';
 
 export default function InicioScreen() {
   // TODO: 
   // 1. Mostrar favoritos (líneas y paradas) - requiere persistencia local (sqlite/kv-store).
   // 2. Mostrar "Avisos de hoy" llamando a la API (o a nuestro servicio mock) y filtrando por fecha actual.
+
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
 
   const { posicion } = useUbicacion();
   const [cercanas, setCercanas] = useState<Parada[]>([]);
@@ -23,25 +29,23 @@ export default function InicioScreen() {
   }, [posicion]);
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Transporte Público Paraná</Text>
-      <Pressable onPress={() => router.push('/parada/escanear')}>
-        <Text>Escanear parada</Text>
-      </Pressable>
+    <View style={[styles.container, { backgroundColor: c.fondo }]}>
+      <Texto variante="titulo" style={styles.title}>Transporte Público Paraná</Texto>
+      <Boton titulo="Escanear parada" variante="primario" onPress={() => router.push('/parada/escanear')} />
 
       {/* TODO: Reemplazar con listas reales usando FlatList y componentes visuales */}
-      <Text style={styles.subtitle}>Tus paradas (Favoritos)</Text>
+      <Texto variante="subtitulo" style={styles.subtitle}>Tus paradas (Favoritos)</Texto>
       <Link href="/parada/par-101" asChild>
-        <Button title="Ir a Parada: Alameda y Urquiza (Mock)" />
+        <Boton titulo="Ir a Parada: Alameda y Urquiza (Mock)" />
       </Link>
 
-      <Text style={styles.subtitle}>Avisos de hoy</Text>
+      <Texto variante="subtitulo" style={styles.subtitle}>Avisos de hoy</Texto>
       <Link href="/aviso/avi-088" asChild>
-        <Button title="Ver aviso: Desvío por obra en calle Corrientes" />
+        <Boton titulo="Ver aviso: Desvío por obra en calle Corrientes" />
       </Link>
 
-      <Text style={styles.subtitle}>Mapa de paradas cerca tuyo</Text>
-      <View style={styles.mapa}>
+      <Texto variante="subtitulo" style={styles.subtitle}>Mapa de paradas cerca tuyo</Texto>
+      <View style={[styles.mapa, { borderColor: c.borde }]}>
         <MapaParadas
           paradas={cercanas}
           centro={
@@ -55,12 +59,10 @@ export default function InicioScreen() {
   );
 }
 
+// ESTILO: solo distribución; los colores salen de useColores()
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
-  subtitle: { fontSize: 18, marginTop: 16, marginBottom: 8, fontWeight: '600' },
-  mapPlaceholder: { height: 200, backgroundColor: '#e0e0e0', justifyContent: 'center', alignItems: 'center' },
-  mapa: { height: 240, borderRadius: 10, overflow: 'hidden' },
-
+  container: { flex: 1, padding: espacio.l },
+  title: { marginBottom: espacio.l },
+  subtitle: { marginTop: espacio.l, marginBottom: espacio.s },
+  mapa: { height: 240, borderRadius: radio.m, overflow: 'hidden', borderWidth: 1 },
 });
-
