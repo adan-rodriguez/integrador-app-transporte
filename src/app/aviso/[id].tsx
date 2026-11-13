@@ -1,22 +1,29 @@
 import { Link, Stack, useLocalSearchParams } from 'expo-router';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import MapaRecorrido from '@/componentes/MapaRecorrido';
 import { obtenerAviso, obtenerLineas } from '@/servicios/api';
-import { Aviso, Linea } from '@/tipos';
-import { formatearFechaHora, haceCuanto } from '@/utilidades/fechas';
+import { Aviso, Gravedad, Linea } from '@/tipos';
+import { formatearFechaHora } from '@/utilidades/fechas';
 
 import { descargarVideo, videoGuardado } from '@/servicios/videos';
 
+// ESTILO: componentes y valores del tema
+import { Cargando, Texto } from '@/componentes/ui';
+import { espacio, radio, textoSobre, useColores } from '@/tema';
+
+// ESTILO: acá queda solo el texto; el color sale del tema (cambia en modo oscuro)
 const GRAVEDAD = {
-  suspension: { texto: 'Suspensión', color: '#b00020' },
-  desvio: { texto: 'Desvío', color: '#b35c00' },
-  informativo: { texto: 'Informativo', color: '#1a5fb4' },
+  suspension: { texto: 'Suspensión' },
+  desvio: { texto: 'Desvío' },
+  informativo: { texto: 'Informativo' },
 } as const;
 
 export default function AvisoDetailScreen() {
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
+
   const { id } = useLocalSearchParams<{ id: string }>();
   const [aviso, setAviso] = useState<Aviso | null>(null);
   const [lineas, setLineas] = useState<Linea[]>([]);
@@ -60,46 +67,61 @@ export default function AvisoDetailScreen() {
     });
   }, [id]);
 
-  if (cargando) return <ActivityIndicator style={{ flex: 1 }} />;
+  // ESTILO: color de texto y de fondo para cada gravedad
+  function coloresGravedad(gr: Gravedad) {
+    if (gr === 'suspension') return { color: c.suspension, fondo: c.suspensionFondo };
+    if (gr === 'desvio') return { color: c.desvio, fondo: c.desvioFondo };
+    return { color: c.informativo, fondo: c.informativoFondo };
+  }
+
+  if (cargando) return <Cargando />;
   if (!aviso) {
     return (
-      <View style={styles.center}>
-        <Text>{error ?? 'No encontramos este aviso.'}</Text>
+      <View style={[styles.center, { backgroundColor: c.fondo }]}>
+        <Texto>{error ?? 'No encontramos este aviso.'}</Texto>
       </View>
     );
   }
 
   const g = GRAVEDAD[aviso.gravedad];
+  const col = coloresGravedad(aviso.gravedad);
   const afectadas = lineas.filter((l) => aviso.lineaIds.includes(l.id));
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
+    <ScrollView
+      style={{ backgroundColor: c.fondo }}
+      contentContainerStyle={{ padding: espacio.l, gap: espacio.m, paddingBottom: espacio.xl * 2 }}
+    >
       <Stack.Screen options={{ title: g.texto }} />
 
       {guardadoEn && (
-        <Text style={styles.avisoSinRed}>
-           {enTelefono ? 'Guardado en el teléfono: se puede ver sin conexión.' : 'Guardando para ver sin conexión…'}
-        </Text>
+        <View style={[styles.avisoGuardado, { backgroundColor: c.acentoSuave }]}>
+          <Texto variante="secundario" style={{ color: c.acento }}>
+             {enTelefono ? 'Guardado en el teléfono: se puede ver sin conexión.' : 'Guardando para ver sin conexión…'}
+          </Texto>
+        </View>
       )}
 
-      <View style={{ gap: 4 }}>
-        <Text style={{ color: g.color, fontWeight: '700' }}>{g.texto.toUpperCase()}</Text>
-        <Text style={styles.titulo}>{aviso.titulo}</Text>
-        <Text style={{ fontSize: 13 }}>
+      <View style={{ gap: espacio.xs }}>
+        <View style={[styles.etiqueta, { backgroundColor: col.fondo }]}>
+          <Texto variante="etiqueta" style={{ color: col.color }}>{g.texto.toUpperCase()}</Texto>
+        </View>
+        <Texto variante="titulo">{aviso.titulo}</Texto>
+        <Texto variante="secundario" secundario>
           Desde {formatearFechaHora(aviso.desde)}
           {aviso.hasta ? ` hasta ${formatearFechaHora(aviso.hasta)}` : ' · sin fecha de fin'}
-        </Text>
+        </Texto>
       </View>
 
-      <Text style={{ fontSize: 16, lineHeight: 22 }}>{aviso.detalle}</Text>
+      <Texto style={{ lineHeight: 24 }}>{aviso.detalle}</Texto>
 
-      <View style={{ gap: 6 }}>
-        <Text style={styles.subtitulo}>Líneas afectadas</Text>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+      <View style={{ gap: espacio.s }}>
+        <Texto variante="subtitulo">Líneas afectadas</Texto>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: espacio.s }}>
           {afectadas.map((l) => (
             <Link key={l.id} href={`/linea/${l.id}`} asChild>
-              <Pressable style={StyleSheet.flatten([styles.chip, { borderColor: l.color }])}>
-                <Text style={{ fontWeight: '600' }}>Línea {l.numero}</Text>
+              <Pressable style={StyleSheet.flatten([styles.chip, { backgroundColor: l.color }])}>
+                <Texto variante="cuerpoNegrita" style={{ color: textoSobre(l.color) }}>Línea {l.numero}</Texto>
               </Pressable>
             </Link>
           ))}
@@ -107,17 +129,17 @@ export default function AvisoDetailScreen() {
       </View>
 
       {aviso.videoUrl && (
-        <View style={{ gap: 6 }}>
-          <Text style={styles.subtitulo}>Video del desvío</Text>
+        <View style={{ gap: espacio.s }}>
+          <Texto variante="subtitulo">Video del desvío</Texto>
           <VideoView player={player} style={styles.video} nativeControls />
         </View>
       )}
 
       {aviso.trazadoAlternativo && aviso.trazadoAlternativo.length > 1 && (
-        <View style={{ gap: 6 }}>
-          <Text style={styles.subtitulo}>Recorrido alternativo</Text>
-          <View style={styles.mapa}>
-            <MapaRecorrido trazado={aviso.trazadoAlternativo} paradas={[]} color={g.color} />
+        <View style={{ gap: espacio.s }}>
+          <Texto variante="subtitulo">Recorrido alternativo</Texto>
+          <View style={[styles.mapa, { borderColor: c.borde }]}>
+            <MapaRecorrido trazado={aviso.trazadoAlternativo} paradas={[]} color={col.color} />
           </View>
         </View>
       )}
@@ -125,12 +147,13 @@ export default function AvisoDetailScreen() {
   );
 }
 
+// ESTILO: solo distribución; los colores salen de useColores()
 const styles = StyleSheet.create({
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
-  titulo: { fontSize: 22, fontWeight: 'bold' },
-  subtitulo: { fontSize: 17, fontWeight: '600' },
-  chip: { paddingVertical: 6, paddingHorizontal: 12, borderWidth: 2, borderRadius: 16 },
-  video: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000', borderRadius: 8 },
-  mapa: { height: 260, borderRadius: 10, overflow: 'hidden' },
-  avisoSinRed: { padding: 8, borderRadius: 8, backgroundColor: '#fff3cd', color: '#5c4400' },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: espacio.xl },
+  etiqueta: { alignSelf: 'flex-start', borderRadius: radio.s, paddingHorizontal: espacio.s, paddingVertical: 2 },
+  chip: { paddingVertical: espacio.s, paddingHorizontal: espacio.m, borderRadius: radio.m },
+  // El fondo negro del video se deja a propósito: es el "marco" del reproductor en ambos modos
+  video: { width: '100%', aspectRatio: 16 / 9, backgroundColor: '#000', borderRadius: radio.m },
+  mapa: { height: 260, borderRadius: radio.m, overflow: 'hidden', borderWidth: 1 },
+  avisoGuardado: { padding: espacio.m, borderRadius: radio.m },
 });

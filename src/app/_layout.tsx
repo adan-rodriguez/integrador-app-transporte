@@ -1,4 +1,9 @@
 // Layout raíz: envuelve la app con la sesión y define la navegación principal
+import {
+  AtkinsonHyperlegible_400Regular,
+  AtkinsonHyperlegible_700Bold,
+} from "@expo-google-fonts/atkinson-hyperlegible";
+import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { ActivityIndicator, View } from "react-native";
@@ -37,6 +42,7 @@ function Contenido() {
         screenOptions={{
           headerStyle: { backgroundColor: colores.fondo },
           headerTintColor: colores.texto,
+          headerTitleStyle: { fontFamily: "AtkinsonHyperlegible_700Bold" },
           contentStyle: { backgroundColor: colores.fondo },
         }}
       >
@@ -56,6 +62,16 @@ function Contenido() {
 }
 
 export default function LayoutRaiz() {
+  // Los archivos de la fuente vienen de @expo-google-fonts;
+  // la carga la hace expo-font, el módulo oficial que usa el proyecto.
+  const [fuentesListas] = useFonts({
+    AtkinsonHyperlegible_400Regular,
+    AtkinsonHyperlegible_700Bold,
+  });
+
+  // Hasta que la fuente esté lista no dibujamos nada (dura milisegundos).
+  if (!fuentesListas) return null;
+
   return (
     <SesionProvider>
       <StatusBar style="auto" />
