@@ -1,6 +1,6 @@
 import { Link } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, Text, TextInput, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import MapaParadas from "@/componentes/MapaParadas";
 import { useUbicacion } from "@/hooks/useUbicacion";
@@ -11,17 +11,23 @@ import { formatearDistancia } from "@/utilidades/coordenadas";
 import { guardarRadioParadas, guardarVistaParadas, leerRadioParadas, leerVistaParadas } from "@/servicios/preferencias";
 import { haceCuanto } from "@/utilidades/fechas";
 
+// ESTILO: componentes y valores del tema
+import { BannerSinRed, Boton, Cargando, Selector, Texto } from "@/componentes/ui";
+import { espacio, fuentes, radio, useColores } from "@/tema";
+
 type Fila = Parada & { distanciaMetros?: number };
 
 // TODO: permitir un radio manual (TextInput numérico, entre 1 y 50000 m, que es el límite de la API)
 const RADIOS: (number | null)[] = [null, 100, 300, 500];
 
 export default function Paradas() {
+  const c = useColores(); // ESTILO: colores según modo claro/oscuro
+
   const { estado, posicion, reintentar } = useUbicacion();
   const [paradas, setParadas] = useState<Fila[]>([]);
   const [buscando, setBuscando] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [radio, setRadio] = useState<number | null>(leerRadioParadas);
+  const [radio_, setRadio] = useState<number | null>(leerRadioParadas);
   const [vista, setVista] = useState<"lista" | "mapa">(leerVistaParadas);
   const [busqueda, setBusqueda] = useState("");
   const [q, setQ] = useState("");
@@ -42,8 +48,8 @@ export default function Paradas() {
     setBuscando(true);
     setError(null);
     const pedido =
-      conUbicacion && radio !== null
-        ? obtenerParadasCercanas(posicion.coords.latitude, posicion.coords.longitude, radio, q)
+      conUbicacion && radio_ !== null
+        ? obtenerParadasCercanas(posicion.coords.latitude, posicion.coords.longitude, radio_, q)
         : obtenerParadas(q);
     pedido
       .then((res) => {
@@ -52,19 +58,19 @@ export default function Paradas() {
       })
       .catch((e) => setError(e.message))
       .finally(() => setBuscando(false));
-  }, [estado, posicion, radio, q]);
+  }, [estado, posicion, radio_, q]);
 
 
-  if (estado === "cargando") return <ActivityIndicator style={{ flex: 1 }} />;
+  if (estado === "cargando") return <Cargando />;
 
   return (
-    <View style={{ flex: 1, padding: 16, gap: 12 }}>
+    <View style={[styles.pantalla, { backgroundColor: c.fondo }]}>
       {!conUbicacion && (
-        <Pressable onPress={reintentar} style={{ padding: 10, borderWidth: 1, borderRadius: 8 }}>
-          <Text>
+        <Pressable onPress={reintentar} style={[styles.avisoUbicacion, { backgroundColor: c.acentoSuave }]}>
+          <Texto variante="secundario" style={{ color: c.acento }}>
             {estado === "denegado" ? "Sin permiso de ubicación." : "No pudimos obtener tu ubicación."}{" "}
             Mostramos todas. Tocá para reintentar.
-          </Text>
+          </Texto>
         </Pressable>
       )}
 
@@ -73,51 +79,53 @@ export default function Paradas() {
         value={busqueda}
         onChangeText={setBusqueda}
         placeholder="Buscar parada por nombre o calle"
+        placeholderTextColor={c.textoSecundario}
         autoCorrect={false}
         clearButtonMode="while-editing"
-        style={{ borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, height: 44 }}
+        style={[
+          styles.buscador,
+          { backgroundColor: c.tarjeta, borderColor: c.borde, color: c.texto, fontFamily: fuentes.regular },
+        ]}
       />
-      <View style={{ flexDirection: "row", borderWidth: 1, borderRadius: 10, overflow: "hidden" }}>
-        {(["lista", "mapa"] as const).map((v) => (
-          <Pressable
-            key={v}
-            onPress={() => { setVista(v); guardarVistaParadas(v); }}
-            style={{ flex: 1, padding: 10, backgroundColor: vista === v ? "#ddd" : "transparent" }}
-          >
-            <Text style={{ textAlign: "center" }}>{v === "lista" ? "Lista" : "Mapa"}</Text>
-          </Pressable>
-        ))}
-      </View>
 
-      <View style={{ flexDirection: "row", gap: 8 }}>
+      <Selector
+        opciones={[
+          { valor: "lista", texto: "Lista" },
+          { valor: "mapa", texto: "Mapa" },
+        ]}
+        valor={vista}
+        onCambiar={(v) => { setVista(v); guardarVistaParadas(v); }}
+      />
+
+      <View style={{ flexDirection: "row", gap: espacio.s }}>
         {RADIOS.map((r) => {
-          const activo = conUbicacion ? radio === r : r === null;
+          const activo = conUbicacion ? radio_ === r : r === null;
           return (
             <Pressable
               key={String(r)}
               disabled={!conUbicacion && r !== null}
               onPress={() => { setRadio(r); guardarRadioParadas(r); }}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 12,
-                borderRadius: 16,
-                borderWidth: 1,
-                opacity: !conUbicacion && r !== null ? 0.4 : 1,
-                backgroundColor: activo ? "#ddd" : "transparent",
-              }}
+              style={[
+                styles.chip,
+                {
+                  opacity: !conUbicacion && r !== null ? 0.4 : 1,
+                  backgroundColor: activo ? c.acento : c.tarjeta,
+                  borderColor: activo ? c.acento : c.borde,
+                },
+              ]}
             >
-              <Text>{r === null ? "Todas" : `${r} m`}</Text>
+              <Texto variante="secundario" style={{ color: activo ? c.textoSobreAcento : c.texto }}>
+                {r === null ? "Todas" : `${r} m`}
+              </Texto>
             </Pressable>
           );
         })}
       </View>
 
 
-      {error && <Text>{error}</Text>}
+      {error && <Texto style={{ color: c.error }}>{error}</Texto>}
       {guardadoEn && (
-        <Text style={{ padding: 8, borderRadius: 8, backgroundColor: "#fff3cd", color: "#5c4400" }}>
-          Sin conexión. Mostramos lo guardado {haceCuanto(guardadoEn)}.
-        </Text>
+        <BannerSinRed mensaje={`Sin conexión. Mostramos lo guardado ${haceCuanto(guardadoEn)}.`} />
       )}
 
       {vista === "lista" ? (
@@ -127,22 +135,22 @@ export default function Paradas() {
           refreshing={buscando}
           onRefresh={reintentar}
           ListEmptyComponent={
-            !buscando ? <Text>{q ? `No encontramos paradas con "${q}".` : "No hay paradas en ese radio."}</Text> : undefined
+            !buscando ? <Texto secundario>{q ? `No encontramos paradas con "${q}".` : "No hay paradas en ese radio."}</Texto> : undefined
           }
           renderItem={({ item }) => (
             <Link href={`/parada/${item.id}`} asChild>
-              <Pressable style={{ paddingVertical: 12, borderBottomWidth: 1, borderColor: "#ddd" }}>
-                <Text style={{ fontWeight: "600" }}>{item.nombre}</Text>
-                <Text>
+              <Pressable style={StyleSheet.flatten([styles.fila, { borderColor: c.borde }])}>
+                <Texto variante="cuerpoNegrita">{item.nombre}</Texto>
+                <Texto variante="secundario" secundario>
                   {item.distanciaMetros !== undefined ? `${formatearDistancia(item.distanciaMetros)} · ` : ""}
                   {item.lineaIds.join(", ")}
-                </Text>
+                </Texto>
               </Pressable>
             </Link>
           )}
         />
       ) : (
-        <View style={{ flex: 1, borderRadius: 10, overflow: "hidden" }}>
+        <View style={[styles.mapa, { borderColor: c.borde }]}>
           <MapaParadas
             paradas={paradas}
             centro={
@@ -155,10 +163,18 @@ export default function Paradas() {
       )}
 
       <Link href="/parada/escanear" asChild>
-        <Pressable style={{ padding: 14, borderWidth: 1, borderRadius: 10 }}>
-          <Text style={{ textAlign: "center" }}>Escanear QR de una parada</Text>
-        </Pressable>
+        <Boton titulo="Escanear QR de una parada" />
       </Link>
     </View>
   );
 }
+
+// ESTILO: solo distribución; los colores salen de useColores()
+const styles = StyleSheet.create({
+  pantalla: { flex: 1, padding: espacio.l, gap: espacio.m },
+  avisoUbicacion: { padding: espacio.m, borderRadius: radio.m },
+  buscador: { borderWidth: 1, borderRadius: radio.m, paddingHorizontal: espacio.m, height: 48, fontSize: 16 },
+  chip: { paddingVertical: espacio.s, paddingHorizontal: espacio.m, borderRadius: 16, borderWidth: 1 },
+  fila: { paddingVertical: espacio.m, borderBottomWidth: 1, gap: 2 },
+  mapa: { flex: 1, borderRadius: radio.m, overflow: "hidden", borderWidth: 1 },
+});
