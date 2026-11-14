@@ -4,15 +4,15 @@ import { FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
 
 import MapaParadas from "@/componentes/MapaParadas";
 import { useUbicacion } from "@/hooks/useUbicacion";
-import { obtenerParadas, obtenerParadasCercanas } from "@/servicios/api";
-import { Parada } from "@/tipos";
+import { obtenerLineas, obtenerParadas, obtenerParadasCercanas } from "@/servicios/api";
+import { Linea, Parada } from "@/tipos";
 import { formatearDistancia } from "@/utilidades/coordenadas";
 
 import { guardarRadioParadas, guardarVistaParadas, leerRadioParadas, leerVistaParadas } from "@/servicios/preferencias";
 import { haceCuanto } from "@/utilidades/fechas";
 
 // ESTILO: componentes y valores del tema
-import { BannerSinRed, Boton, Cargando, Selector, Texto } from "@/componentes/ui";
+import { BannerSinRed, Boton, Cargando, ChipLinea, Selector, Texto } from "@/componentes/ui";
 import { espacio, fuentes, radio, useColores } from "@/tema";
 
 type Fila = Parada & { distanciaMetros?: number };
@@ -33,8 +33,15 @@ export default function Paradas() {
   const [q, setQ] = useState("");
   const [guardadoEn, setGuardadoEn] = useState<Date | null>(null);
 
+  // Todas las líneas por id, para mostrar número y color en cada parada
+  const [lineas, setLineas] = useState<Map<string, Linea>>(new Map());
 
-
+  // Las líneas no cambian según el radio o la búsqueda: se cargan una sola vez
+  useEffect(() => {
+    obtenerLineas()
+      .then((res) => setLineas(new Map(res.datos.map((l) => [l.id, l]))))
+      .catch(() => {}); // si falla, se muestra el id como antes
+  }, []);
 
   const conUbicacion = estado === "concedido" && posicion !== null;
 
@@ -141,10 +148,19 @@ export default function Paradas() {
             <Link href={`/parada/${item.id}`} asChild>
               <Pressable style={StyleSheet.flatten([styles.fila, { borderColor: c.borde }])}>
                 <Texto variante="cuerpoNegrita">{item.nombre}</Texto>
-                <Texto variante="secundario" secundario>
-                  {item.distanciaMetros !== undefined ? `${formatearDistancia(item.distanciaMetros)} · ` : ""}
-                  {item.lineaIds.join(", ")}
-                </Texto>
+                <View style={styles.lineasFila}>
+                  {item.distanciaMetros !== undefined && (
+                    <Texto variante="secundario" secundario>{formatearDistancia(item.distanciaMetros)}</Texto>
+                  )}
+                  {item.lineaIds.map((id) => {
+                    const l = lineas.get(id);
+                    return l ? (
+                      <ChipLinea key={id} numero={l.numero} color={l.color} />
+                    ) : (
+                      <Texto key={id} variante="secundario" secundario>{id}</Texto>
+                    );
+                  })}
+                </View>
               </Pressable>
             </Link>
           )}
@@ -176,5 +192,6 @@ const styles = StyleSheet.create({
   buscador: { borderWidth: 1, borderRadius: radio.m, paddingHorizontal: espacio.m, height: 48, fontSize: 16 },
   chip: { paddingVertical: espacio.s, paddingHorizontal: espacio.m, borderRadius: 16, borderWidth: 1 },
   fila: { paddingVertical: espacio.m, borderBottomWidth: 1, gap: 2 },
+  lineasFila: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: espacio.xs, marginTop: 2 },
   mapa: { flex: 1, borderRadius: radio.m, overflow: "hidden", borderWidth: 1 },
 });
